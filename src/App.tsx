@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Layout } from '@/components/layout/Layout';
 import Dashboard from './pages/Dashboard';
+import Wallets from './pages/Wallets';
+import Payouts from './pages/Payouts';
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
