@@ -45,7 +45,12 @@ const App = () => (
           } />
           <Route path="/wallets" element={
             <ProtectedRoute>
-              <div>Wallets Page - Coming Soon</div>
+              <Wallets />
+            </ProtectedRoute>
+          } />
+          <Route path="/payouts" element={
+            <ProtectedRoute>
+              <Payouts />
             </ProtectedRoute>
           } />
           <Route path="/instances" element={

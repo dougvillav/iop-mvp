@@ -1,179 +1,129 @@
 
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { VolumeChart } from '@/components/dashboard/VolumeChart';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DashboardKPIs } from '@/lib/types';
 import { 
   Wallet, 
-  TrendingUp, 
-  DollarSign, 
-  Clock,
+  ArrowUpDown, 
+  CircleDollarSign, 
   AlertTriangle 
 } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function Dashboard() {
-  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { profile } = useAuth();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    fetchDashboardData();
-    
-    // Suscripción para actualizaciones en tiempo real
-    const subscription = supabase
-      .channel('dashboard-updates')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'transactions'
-      }, () => {
-        fetchDashboardData();
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'org_wallets'
-      }, () => {
-        fetchDashboardData();
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      // Obtener KPIs principales
-      const { data: wallets } = await supabase
+const Dashboard = () => {
+  // Query para obtener KPIs básicos
+  const { data: kpis, isLoading: kpisLoading } = useQuery({
+    queryKey: ['dashboard-kpis'],
+    queryFn: async () => {
+      // Obtener balances totales de wallets organizacionales
+      const { data: orgWallets } = await supabase
         .from('org_wallets')
         .select('balance_available, currency');
 
+      // Obtener transacciones del día actual
+      const today = new Date().toISOString().split('T')[0];
+      const { data: todayTransactions } = await supabase
+        .from('transactions')
+        .select('amount_brutto, commission, status, rail')
+        .gte('created_at', today);
+
+      // Obtener transacciones pendientes
+      const { data: pendingTransactions } = await supabase
+        .from('transactions')
+        .select('amount_brutto')
+        .eq('status', 'pending');
+
+      const totalBalance = orgWallets?.reduce((sum, wallet) => sum + Number(wallet.balance_available), 0) || 0;
+      const dailyPayouts = todayTransactions?.filter(t => t.status === 'completed').length || 0;
+      const totalCommissions = todayTransactions?.reduce((sum, t) => sum + Number(t.commission || 0), 0) || 0;
+      const pendingCount = pendingTransactions?.length || 0;
+      
+      const visaVolume = todayTransactions?.filter(t => t.rail === 'visa_direct').reduce((sum, t) => sum + Number(t.amount_brutto), 0) || 0;
+      const mastercardVolume = todayTransactions?.filter(t => t.rail === 'mastercard_send').reduce((sum, t) => sum + Number(t.amount_brutto), 0) || 0;
+
+      return {
+        totalBalance,
+        dailyPayouts,
+        totalCommissions,
+        pendingCount,
+        visaVolume,
+        mastercardVolume
+      };
+    }
+  });
+
+  // Query para datos del gráfico de volumen
+  const { data: chartData, isLoading: chartLoading } = useQuery({
+    queryKey: ['volume-chart'],
+    queryFn: async () => {
       const { data: transactions } = await supabase
         .from('transactions')
-        .select('amount_brutto, commission, rail, status, created_at')
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        .select('amount_brutto, rail, created_at')
+        .eq('status', 'completed')
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: true });
 
-      if (wallets && transactions) {
-        const totalBalance = wallets.reduce((sum, wallet) => sum + (wallet.balance_available || 0), 0);
+      // Agrupar por día y rail
+      const groupedData: Record<string, { visa_direct: number; mastercard_send: number }> = {};
+      
+      transactions?.forEach(transaction => {
+        const date = new Date(transaction.created_at).toISOString().split('T')[0];
+        if (!groupedData[date]) {
+          groupedData[date] = { visa_direct: 0, mastercard_send: 0 };
+        }
         
-        const today = new Date().toISOString().split('T')[0];
-        const dailyPayouts = transactions
-          .filter(t => t.created_at?.startsWith(today) && t.type === 'pay_out')
-          .reduce((sum, t) => sum + t.amount_brutto, 0);
-
-        const totalCommissions = transactions
-          .reduce((sum, t) => sum + (t.commission || 0), 0);
-
-        const pendingTransactions = transactions
-          .filter(t => t.status === 'pending').length;
-
-        const visaVolume = transactions
-          .filter(t => t.rail === 'visa_direct')
-          .reduce((sum, t) => sum + t.amount_brutto, 0);
-
-        const mastercardVolume = transactions
-          .filter(t => t.rail === 'mastercard_send')
-          .reduce((sum, t) => sum + t.amount_brutto, 0);
-
-        setKpis({
-          total_balance: totalBalance,
-          daily_payouts: dailyPayouts,
-          total_commissions: totalCommissions,
-          pending_transactions: pendingTransactions,
-          visa_volume: visaVolume,
-          mastercard_volume: mastercardVolume
-        });
-
-        // Datos para el gráfico (últimos 7 días)
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          return date.toISOString().split('T')[0];
-        }).reverse();
-
-        const chartData = last7Days.map(date => {
-          const dayTransactions = transactions.filter(t => 
-            t.created_at?.startsWith(date)
-          );
-          
-          return {
-            date: new Date(date).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
-            visa_direct: dayTransactions
-              .filter(t => t.rail === 'visa_direct')
-              .reduce((sum, t) => sum + t.amount_brutto, 0),
-            mastercard_send: dayTransactions
-              .filter(t => t.rail === 'mastercard_send')
-              .reduce((sum, t) => sum + t.amount_brutto, 0)
-          };
-        });
-
-        setChartData(chartData);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudieron cargar los datos del dashboard.',
-        variant: 'destructive',
+        if (transaction.rail === 'visa_direct') {
+          groupedData[date].visa_direct += Number(transaction.amount_brutto);
+        } else if (transaction.rail === 'mastercard_send') {
+          groupedData[date].mastercard_send += Number(transaction.amount_brutto);
+        }
       });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  if (loading) {
+      return Object.entries(groupedData).map(([date, data]) => ({
+        date: new Intl.DateTimeFormat('es-MX', { 
+          month: 'short', 
+          day: 'numeric' 
+        }).format(new Date(date)),
+        ...data
+      }));
+    }
+  });
+
+  if (kpisLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-lg" />
-          ))}
-        </div>
-        <div className="h-80 bg-gray-200 animate-pulse rounded-lg" />
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">
-          Bienvenido, {profile?.full_name || profile?.email}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600 mt-1">Resumen de operaciones y métricas clave</p>
       </div>
 
-      {/* KPIs */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPICard
           title="Balance Total"
           value={new Intl.NumberFormat('es-MX', {
             style: 'currency',
             currency: 'USD'
-          }).format(kpis?.total_balance || 0)}
-          description="Fondos disponibles"
+          }).format(kpis?.totalBalance || 0)}
+          description="Todos los wallets"
           icon={Wallet}
-          className="border-l-4 border-l-blue-500"
+          trend={{ value: 5.2, isPositive: true }}
         />
         
         <KPICard
-          title="Payouts del Día"
-          value={new Intl.NumberFormat('es-MX', {
-            style: 'currency',
-            currency: 'USD'
-          }).format(kpis?.daily_payouts || 0)}
-          description="Procesados hoy"
-          icon={TrendingUp}
-          className="border-l-4 border-l-green-500"
+          title="Payouts Hoy"
+          value={kpis?.dailyPayouts || 0}
+          description="Transacciones completadas"
+          icon={ArrowUpDown}
+          trend={{ value: 12.3, isPositive: true }}
         />
         
         <KPICard
@@ -181,18 +131,18 @@ export default function Dashboard() {
           value={new Intl.NumberFormat('es-MX', {
             style: 'currency',
             currency: 'USD'
-          }).format(kpis?.total_commissions || 0)}
-          description="Últimos 30 días"
-          icon={DollarSign}
-          className="border-l-4 border-l-yellow-500"
+          }).format(kpis?.totalCommissions || 0)}
+          description="Generadas hoy"
+          icon={CircleDollarSign}
+          trend={{ value: 8.1, isPositive: true }}
         />
         
         <KPICard
-          title="Transacciones Pendientes"
-          value={kpis?.pending_transactions || 0}
-          description="Requieren atención"
-          icon={Clock}
-          className="border-l-4 border-l-red-500"
+          title="Pendientes"
+          value={kpis?.pendingCount || 0}
+          description="Transacciones"
+          icon={AlertTriangle}
+          className={kpis?.pendingCount && kpis.pendingCount > 5 ? "border-yellow-200 bg-yellow-50" : ""}
         />
       </div>
 
@@ -200,67 +150,58 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Volumen por Rail</CardTitle>
-            <CardDescription>Últimos 7 días</CardDescription>
+            <CardTitle>Volumen por Rail - Últimos 7 días</CardTitle>
+            <CardDescription>
+              Comparación entre Visa Direct y MasterCard Send
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <VolumeChart data={chartData} />
+            {chartLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <VolumeChart data={chartData || []} />
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Distribución de Rails</CardTitle>
-            <CardDescription>Volumen total último mes</CardDescription>
+            <CardTitle>Resumen de Rail</CardTitle>
+            <CardDescription>Volumen por plataforma hoy</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-blue-600 rounded-full" />
-                  <span className="text-sm font-medium">Visa Direct</span>
-                </div>
-                <span className="text-sm text-gray-600">
-                  {new Intl.NumberFormat('es-MX', {
-                    style: 'currency',
-                    currency: 'USD'
-                  }).format(kpis?.visa_volume || 0)}
-                </span>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div>
+                <p className="text-sm font-medium text-blue-900">Visa Direct</p>
+                <p className="text-xs text-blue-600">Volumen procesado</p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-600 rounded-full" />
-                  <span className="text-sm font-medium">MasterCard Send</span>
-                </div>
-                <span className="text-sm text-gray-600">
-                  {new Intl.NumberFormat('es-MX', {
-                    style: 'currency',
-                    currency: 'USD'
-                  }).format(kpis?.mastercard_volume || 0)}
-                </span>
+              <p className="text-lg font-bold text-blue-900">
+                {new Intl.NumberFormat('es-MX', {
+                  style: 'currency',
+                  currency: 'USD'
+                }).format(kpis?.visaVolume || 0)}
+              </p>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+              <div>
+                <p className="text-sm font-medium text-red-900">MasterCard Send</p>
+                <p className="text-xs text-red-600">Volumen procesado</p>
               </div>
+              <p className="text-lg font-bold text-red-900">
+                {new Intl.NumberFormat('es-MX', {
+                  style: 'currency',
+                  currency: 'USD'
+                }).format(kpis?.mastercardVolume || 0)}
+              </p>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Alertas */}
-      {kpis?.pending_transactions && kpis.pending_transactions > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-yellow-800">
-              <AlertTriangle className="h-5 w-5" />
-              <span>Atención Requerida</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-yellow-700">
-              Tienes {kpis.pending_transactions} transacciones pendientes que requieren revisión.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
-}
+};
+
+export default Dashboard;
