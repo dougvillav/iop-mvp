@@ -1,152 +1,68 @@
 
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { 
-  LayoutDashboard, 
-  Wallet, 
-  Building2, 
-  CreditCard, 
-  ArrowUpDown, 
-  AlertTriangle, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  CreditCard,
   Users,
-  LogOut
+  Building2,
+  ArrowLeftRight,
+  Wallet,
+  Shield,
+  LogOut,
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
 
-const navItems = [
-  {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-    roles: ['admin', 'operator', 'readonly']
-  },
-  {
-    title: 'Wallets',
-    href: '/wallets',
-    icon: Wallet,
-    roles: ['admin', 'operator', 'readonly']
-  },
-  {
-    title: 'Instancias',
-    href: '/instances',
-    icon: Building2,
-    roles: ['admin', 'operator']
-  },
-  {
-    title: 'Cardholders',
-    href: '/cardholders',
-    icon: CreditCard,
-    roles: ['admin', 'operator']
-  },
-  {
-    title: 'Transacciones',
-    href: '/transactions',
-    icon: ArrowUpDown,
-    roles: ['admin', 'operator', 'readonly']
-  },
-  {
-    title: 'Payouts',
-    href: '/payouts',
-    icon: CreditCard,
-    roles: ['admin', 'operator']
-  },
-  {
-    title: 'Disputas',
-    href: '/disputes',
-    icon: AlertTriangle,
-    roles: ['admin', 'operator']
-  },
-  {
-    title: 'Reportes',
-    href: '/reports',
-    icon: BarChart3,
-    roles: ['admin', 'operator', 'readonly']
-  },
-  {
-    title: 'Usuarios',
-    href: '/users',
-    icon: Users,
-    roles: ['admin']
-  }
+const navigation = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Payouts', href: '/payouts', icon: ArrowLeftRight },
+  { name: 'Transacciones', href: '/transactions', icon: CreditCard },
+  { name: 'Cardholders', href: '/cardholders', icon: Users },
+  { name: 'Instancias', href: '/instances', icon: Building2 },
+  { name: 'Wallets', href: '/wallets', icon: Wallet },
+  { name: 'Anti-Fraude', href: '/fraud', icon: Shield },
 ];
 
 export const Sidebar = () => {
-  const navigate = useNavigate();
   const location = useLocation();
 
-  const { profile, signOut } = useAuth();
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
-  const filteredNavItems = navItems.filter(item => 
-    profile && item.roles.includes(profile.role)
-  );
-
   return (
-    <div className="flex h-screen w-64 flex-col bg-white border-r border-gray-200">
-      {/* Header */}
-      <div className="flex h-16 items-center justify-center border-b border-gray-200">
-        <h1 className="text-xl font-bold text-blue-600">InOutPayments</h1>
+    <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
+      <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-6">
+        <h1 className="text-xl font-bold text-gray-900">InOutPayments</h1>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
-        {filteredNavItems.map((item) => {
-          const Icon = item.icon;
+      
+      <nav className="flex-1 space-y-1 px-4 py-4">
+        {navigation.map((item) => {
           const isActive = location.pathname === item.href;
-          
           return (
             <Link
-              key={item.href}
+              key={item.name}
               to={item.href}
               className={cn(
-                'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors',
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-blue-50 border-r-2 border-blue-500 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )}
             >
-              <Icon className="h-5 w-5" />
-              <span>{item.title}</span>
+              <item.icon
+                className={cn(
+                  'mr-3 h-5 w-5 flex-shrink-0',
+                  isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+                )}
+              />
+              {item.name}
             </Link>
           );
         })}
       </nav>
-
-      {/* User section */}
-      <div className="border-t border-gray-200 p-4">
-        <div className="flex items-center space-x-3 mb-3">
-          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-sm font-medium text-white">
-              {profile?.full_name?.charAt(0) || profile?.email?.charAt(0) || '?'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {profile?.full_name || profile?.email}
-            </p>
-            <p className="text-xs text-gray-500 capitalize">
-              {profile?.role}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSignOut}
-          className="w-full"
-        >
-          <LogOut className="h-4 w-4 mr-2" />
+      
+      <div className="flex-shrink-0 border-t border-gray-200 p-4">
+        <button className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+          <LogOut className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
           Cerrar Sesión
-        </Button>
+        </button>
       </div>
     </div>
   );

@@ -8,37 +8,33 @@ import { Layout } from "@/components/layout/Layout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Payouts from "./pages/Payouts";
-import Wallets from "./pages/Wallets";
-import Instances from "./pages/Instances";
-import Cardholders from "./pages/Cardholders";
 import Transactions from "./pages/Transactions";
-import NotFound from "./pages/NotFound";
+import Cardholders from "./pages/Cardholders";
+import Instances from "./pages/Instances";
+import Wallets from "./pages/Wallets";
+import FraudDashboard from "./pages/FraudDashboard";
 
 const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route element={<Layout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/payouts" element={<Payouts />} />
-              <Route path="/wallets" element={<Wallets />} />
-              <Route path="/instances" element={<Instances />} />
-              <Route path="/cardholders" element={<Cardholders />} />
-              <Route path="/transactions" element={<Transactions />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout><Index /></Layout>} />
+          <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+          <Route path="/payouts" element={<Layout><Payouts /></Layout>} />
+          <Route path="/transactions" element={<Layout><Transactions /></Layout>} />
+          <Route path="/cardholders" element={<Layout><Cardholders /></Layout>} />
+          <Route path="/instances" element={<Layout><Instances /></Layout>} />
+          <Route path="/wallets" element={<Layout><Wallets /></Layout>} />
+          <Route path="/fraud" element={<Layout><FraudDashboard /></Layout>} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

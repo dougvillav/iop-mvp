@@ -1,115 +1,156 @@
 
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Building2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2 } from 'lucide-react';
 import { CURRENCIES, COUNTRIES } from '@/utils/constants';
+import type { Instance } from '@/lib/types';
 
-export const InstanceModal = () => {
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    legal_name: '',
-    registration_id: '',
-    country_iso: '',
-    settlement_currency: '',
+interface InstanceModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  instance?: Instance | null;
+}
+
+const instanceSchema = z.object({
+  legal_name: z.string().min(1, 'Nombre legal es requerido'),
+  registration_id: z.string().optional(),
+  country_iso: z.string().min(2, 'País es requerido'),
+  settlement_currency: z.string().min(3, 'Moneda es requerida'),
+});
+
+type InstanceFormData = z.infer<typeof instanceSchema>;
+
+export const InstanceModal: React.FC<InstanceModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  instance,
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<InstanceFormData>({
+    resolver: zodResolver(instanceSchema),
+    defaultValues: instance ? {
+      legal_name: instance.legal_name,
+      registration_id: instance.registration_id || '',
+      country_iso: instance.country_iso,
+      settlement_currency: instance.settlement_currency,
+    } : {},
   });
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const selectedCountry = watch('country_iso');
+  const selectedCurrency = watch('settlement_currency');
 
-  const createInstanceMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const { data: result, error } = await supabase
-        .from('instances')
-        .insert([data])
-        .select()
-        .single();
+  const onSubmit = async (data: InstanceFormData) => {
+    setIsLoading(true);
+    try {
+      if (instance) {
+        // Update existing instance
+        const { error } = await supabase
+          .from('instances')
+          .update(data)
+          .eq('id', instance.id);
 
-      if (error) throw error;
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['instances'] });
-      toast({
-        title: 'Instancia creada',
-        description: 'La instancia se ha creado exitosamente.',
-      });
-      setOpen(false);
-      setFormData({
-        legal_name: '',
-        registration_id: '',
-        country_iso: '',
-        settlement_currency: '',
-      });
-    },
-    onError: (error: any) => {
+        if (error) throw error;
+
+        toast({
+          title: 'Instancia actualizada',
+          description: 'La instancia se actualizó correctamente',
+        });
+      } else {
+        // Create new instance
+        const { error } = await supabase
+          .from('instances')
+          .insert([data]);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Instancia creada',
+          description: 'La nueva instancia se creó correctamente',
+        });
+      }
+
+      onSuccess();
+      onClose();
+      reset();
+    } catch (error) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Error desconocido',
         variant: 'destructive',
       });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createInstanceMutation.mutate(formData);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva Instancia
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center">
-            <Building2 className="h-5 w-5 mr-2 text-blue-600" />
-            Crear Nueva Instancia
+          <DialogTitle>
+            {instance ? 'Editar Instancia' : 'Nueva Instancia'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="legal_name">Nombre Legal *</Label>
+            <Label htmlFor="legal_name">Nombre Legal</Label>
             <Input
               id="legal_name"
-              value={formData.legal_name}
-              onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
-              placeholder="Nombre legal de la empresa"
-              required
+              {...register('legal_name')}
+              placeholder="Nombre legal de la instancia"
             />
+            {errors.legal_name && (
+              <p className="text-sm text-red-600">{errors.legal_name.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="registration_id">ID de Registro</Label>
+            <Label htmlFor="registration_id">ID de Registro (Opcional)</Label>
             <Input
               id="registration_id"
-              value={formData.registration_id}
-              onChange={(e) => setFormData({ ...formData, registration_id: e.target.value })}
-              placeholder="Número de registro comercial"
+              {...register('registration_id')}
+              placeholder="Número de registro"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="country_iso">País *</Label>
+            <Label htmlFor="country_iso">País</Label>
             <Select
-              value={formData.country_iso}
-              onValueChange={(value) => setFormData({ ...formData, country_iso: value })}
+              value={selectedCountry}
+              onValueChange={(value) => setValue('country_iso', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar país" />
@@ -122,13 +163,16 @@ export const InstanceModal = () => {
                 ))}
               </SelectContent>
             </Select>
+            {errors.country_iso && (
+              <p className="text-sm text-red-600">{errors.country_iso.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="settlement_currency">Moneda de Liquidación *</Label>
+            <Label htmlFor="settlement_currency">Moneda de Liquidación</Label>
             <Select
-              value={formData.settlement_currency}
-              onValueChange={(value) => setFormData({ ...formData, settlement_currency: value })}
+              value={selectedCurrency}
+              onValueChange={(value) => setValue('settlement_currency', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar moneda" />
@@ -136,30 +180,36 @@ export const InstanceModal = () => {
               <SelectContent>
                 {CURRENCIES.map((currency) => (
                   <SelectItem key={currency.code} value={currency.code}>
-                    {currency.code} - {currency.name}
+                    {currency.symbol} {currency.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {errors.settlement_currency && (
+              <p className="text-sm text-red-600">{errors.settlement_currency.message}</p>
+            )}
           </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={createInstanceMutation.isPending}
+              onClick={onClose}
+              disabled={isLoading}
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={createInstanceMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {createInstanceMutation.isPending ? 'Creando...' : 'Crear Instancia'}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {instance ? 'Actualizando...' : 'Creando...'}
+                </>
+              ) : (
+                instance ? 'Actualizar' : 'Crear'
+              )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

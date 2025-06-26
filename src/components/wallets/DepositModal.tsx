@@ -1,148 +1,177 @@
 
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '@/utils/constants';
 import type { OrgWallet } from '@/lib/types';
 
-interface DepositModalProps {
+export interface DepositModalProps {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  wallet: OrgWallet;
+  onClose: () => void;
+  onSuccess: () => void;
+  wallets: OrgWallet[];
 }
 
-export const DepositModal = ({ isOpen, onOpenChange, wallet }: DepositModalProps) => {
-  const [amount, setAmount] = useState('');
-  const [reference, setReference] = useState('');
-  
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+const depositSchema = z.object({
+  org_wallet_id: z.string().min(1, 'Wallet es requerido'),
+  amount: z.number().min(0.01, 'El monto debe ser mayor a 0'),
+  reference: z.string().min(1, 'Referencia es requerida'),
+});
 
-  const depositMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.rpc('create_deposit', {
-        p_org_wallet_id: wallet.id,
-        p_amount: parseFloat(amount),
-        p_reference: reference || `Depósito ${new Date().toLocaleDateString()}`
+type DepositFormData = z.infer<typeof depositSchema>;
+
+export const DepositModal: React.FC<DepositModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  wallets,
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<DepositFormData>({
+    resolver: zodResolver(depositSchema),
+  });
+
+  const selectedWalletId = watch('org_wallet_id');
+  const selectedWallet = wallets.find(w => w.id === selectedWalletId);
+
+  const onSubmit = async (data: DepositFormData) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.rpc('create_deposit', {
+        p_org_wallet_id: data.org_wallet_id,
+        p_amount: data.amount,
+        p_reference: data.reference,
       });
 
       if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org-wallets'] });
-      queryClient.invalidateQueries({ queryKey: ['wallet-ledger'] });
-      toast({
-        title: 'Depósito realizado',
-        description: `Se ha depositado ${getCurrencySymbol(wallet.currency)}${amount} exitosamente.`,
-      });
-      onOpenChange(false);
-      setAmount('');
-      setReference('');
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Error en el depósito',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) {
       toast({
-        title: 'Error',
-        description: 'El monto debe ser mayor a 0',
+        title: 'Depósito creado',
+        description: `Depósito de ${getCurrencySymbol(selectedWallet?.currency || '')}${data.amount.toLocaleString()} creado correctamente`,
+      });
+
+      onSuccess();
+      onClose();
+      reset();
+    } catch (error) {
+      toast({
+        title: 'Error al crear depósito',
+        description: error instanceof Error ? error.message : 'Error desconocido',
         variant: 'destructive',
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    depositMutation.mutate();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>
-            Depositar a Wallet {wallet.currency}
-          </DialogTitle>
+          <DialogTitle>Nuevo Depósito</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="amount">Monto *</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                {getCurrencySymbol(wallet.currency)}
-              </span>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="pl-8"
-                placeholder="0.00"
-                required
-              />
-            </div>
+            <Label htmlFor="org_wallet_id">Wallet Organizacional</Label>
+            <Select
+              value={selectedWalletId}
+              onValueChange={(value) => setValue('org_wallet_id', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar wallet" />
+              </SelectTrigger>
+              <SelectContent>
+                {wallets.map((wallet) => (
+                  <SelectItem key={wallet.id} value={wallet.id}>
+                    {wallet.currency} - Balance: {getCurrencySymbol(wallet.currency)}{wallet.balance_available?.toLocaleString() || '0'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.org_wallet_id && (
+              <p className="text-sm text-red-600">{errors.org_wallet_id.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="amount">
+              Monto {selectedWallet && `(${getCurrencySymbol(selectedWallet.currency)})`}
+            </Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              {...register('amount', { valueAsNumber: true })}
+              placeholder="0.00"
+            />
+            {errors.amount && (
+              <p className="text-sm text-red-600">{errors.amount.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="reference">Referencia</Label>
-            <Textarea
+            <Input
               id="reference"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Descripción del depósito (opcional)"
-              rows={3}
+              {...register('reference')}
+              placeholder="Referencia del depósito"
             />
-          </div>
-
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-sm text-gray-600">
-              <strong>Balance actual:</strong> {getCurrencySymbol(wallet.currency)}
-              {Number(wallet.balance_available).toLocaleString()}
-            </p>
-            {amount && (
-              <p className="text-sm text-gray-600 mt-1">
-                <strong>Nuevo balance:</strong> {getCurrencySymbol(wallet.currency)}
-                {(Number(wallet.balance_available) + parseFloat(amount || '0')).toLocaleString()}
-              </p>
+            {errors.reference && (
+              <p className="text-sm text-red-600">{errors.reference.message}</p>
             )}
           </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={depositMutation.isPending}
+              onClick={onClose}
+              disabled={isLoading}
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={depositMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {depositMutation.isPending ? 'Procesando...' : 'Realizar Depósito'}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                'Crear Depósito'
+              )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
