@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Payouts from "./pages/Payouts";
 import Wallets from "./pages/Wallets";
 import Instances from "./pages/Instances";
+import Cardholders from "./pages/Cardholders";
+import Transactions from "./pages/Transactions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ function App() {
               <Route path="/payouts" element={<Payouts />} />
               <Route path="/wallets" element={<Wallets />} />
               <Route path="/instances" element={<Instances />} />
+              <Route path="/cardholders" element={<Cardholders />} />
+              <Route path="/transactions" element={<Transactions />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,3 +1,4 @@
+
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
@@ -46,6 +47,12 @@ const navItems = [
     roles: ['admin', 'operator', 'readonly']
   },
   {
+    title: 'Payouts',
+    href: '/payouts',
+    icon: CreditCard,
+    roles: ['admin', 'operator']
+  },
+  {
     title: 'Disputas',
     href: '/disputes',
     icon: AlertTriangle,
@@ -68,29 +75,6 @@ const navItems = [
 export const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const menuItems = [
-    {
-      name: 'Dashboard', 
-      path: '/dashboard',
-      icon: BarChart3
-    },
-    {
-      name: 'Instancias',
-      path: '/instances', 
-      icon: Building2
-    },
-    {
-      name: 'Wallets',
-      path: '/wallets',
-      icon: Wallet
-    },
-    {
-      name: 'Payouts',
-      path: '/payouts',
-      icon: CreditCard
-    }
-  ];
 
   const { profile, signOut } = useAuth();
 
