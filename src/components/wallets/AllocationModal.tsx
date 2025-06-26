@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
 import { useForm } from 'react-hook-form';
 import { useToast } from '@/hooks/use-toast';
@@ -227,14 +227,11 @@ export const AllocationModal = ({
                     Monto {selectedInstanceWallet && `(${selectedInstanceWallet.currency})`}
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={selectedOrgWallet ? Number(selectedOrgWallet.balance_available) : undefined}
+                    <AmountInput
                       placeholder="0.00"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={field.value ? field.value.toString() : ''}
+                      onChange={(value) => field.onChange(parseFloat(value) || 0)}
+                      max={selectedOrgWallet ? Number(selectedOrgWallet.balance_available) : undefined}
                     />
                   </FormControl>
                   {selectedOrgWallet && (

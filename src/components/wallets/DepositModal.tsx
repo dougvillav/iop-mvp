@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
 import { useForm } from 'react-hook-form';
 import { useToast } from '@/hooks/use-toast';
@@ -153,13 +154,10 @@ export const DepositModal = ({
                     Monto {selectedWalletData && `(${selectedWalletData.currency})`}
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    <AmountInput
                       placeholder="0.00"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={field.value ? field.value.toString() : ''}
+                      onChange={(value) => field.onChange(parseFloat(value) || 0)}
                     />
                   </FormControl>
                   <FormMessage />
