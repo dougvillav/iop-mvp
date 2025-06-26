@@ -39,7 +39,7 @@ export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) =
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <div className="text-xl font-bold">
             ${totalBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -54,7 +54,7 @@ export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) =
           <Building2 className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <div className="text-xl font-bold">
             ${totalOrgBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -69,7 +69,7 @@ export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) =
           <Wallet className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <div className="text-xl font-bold">
             ${totalInstanceBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -84,7 +84,7 @@ export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) =
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{Object.keys(currencyGroups).length}</div>
+          <div className="text-xl font-bold">{Object.keys(currencyGroups).length}</div>
           <p className="text-xs text-muted-foreground">
             {Object.keys(currencyGroups).join(', ')}
           </p>

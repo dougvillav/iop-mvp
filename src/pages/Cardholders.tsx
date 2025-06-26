@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { CardholderCard } from '@/components/cardholders/CardholderCard';
+import { CardholderTable } from '@/components/cardholders/CardholderTable';
 import { CardholderModal } from '@/components/cardholders/CardholderModal';
 import type { Cardholder } from '@/lib/types';
 
@@ -112,15 +112,10 @@ const Cardholders = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {cardholders.map((cardholder) => (
-            <CardholderCard
-              key={cardholder.id}
-              cardholder={cardholder}
-              onEdit={() => openCardholderModal(cardholder)}
-            />
-          ))}
-        </div>
+        <CardholderTable
+          cardholders={cardholders}
+          onEdit={(cardholder) => openCardholderModal(cardholder)}
+        />
       )}
 
       <CardholderModal

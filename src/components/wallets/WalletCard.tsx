@@ -43,7 +43,7 @@ export const WalletCard = ({ wallet, type, onDeposit, onAllocate }: WalletCardPr
       
       <CardContent className="space-y-4">
         <div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-xl font-bold text-gray-900">
             {new Intl.NumberFormat('es-MX', {
               style: 'currency',
               currency: wallet.currency
