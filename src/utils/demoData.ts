@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { TransactionStatus, TransactionType } from '@/lib/types';
 
 export const generateDemoData = async () => {
   try {
@@ -106,53 +107,40 @@ export const generateDemoData = async () => {
           instance_id: instanceId,
           cardholder_id: cardholders[0].id,
           instance_wallet_id: instanceWallet.id,
-          type: 'pay_out',
+          type: 'pay_out' as TransactionType,
           rail: 'visa_direct',
           amount_brutto: 150.00,
           commission: 3.50,
           tax: 0.00,
           amount_net: 146.50,
-          status: 'completed',
+          status: 'completed' as TransactionStatus,
           external_reference: 'TXN-DEMO-001'
         },
         {
           instance_id: instanceId,
           cardholder_id: cardholders[1].id,
           instance_wallet_id: instanceWallet.id,
-          type: 'pay_out',
+          type: 'pay_out' as TransactionType,
           rail: 'mastercard_send',
           amount_brutto: 250.00,
           commission: 5.25,
           tax: 12.50,
           amount_net: 232.25,
-          status: 'pending',
+          status: 'pending' as TransactionStatus,
           external_reference: 'TXN-DEMO-002'
         },
         {
           instance_id: instanceId,
           cardholder_id: cardholders[2].id,
           instance_wallet_id: instanceWallet.id,
-          type: 'pay_out',
+          type: 'pay_out' as TransactionType,
           rail: 'visa_direct',
           amount_brutto: 75.00,
           commission: 1.75,
           tax: 3.75,
           amount_net: 69.50,
-          status: 'failed',
+          status: 'failed' as TransactionStatus,
           external_reference: 'TXN-DEMO-003'
-        },
-        {
-          instance_id: instanceId,
-          cardholder_id: cardholders[0].id,
-          instance_wallet_id: instanceWallet.id,
-          type: 'refund',
-          rail: 'visa_direct',
-          amount_brutto: 50.00,
-          commission: 0.00,
-          tax: 0.00,
-          amount_net: 50.00,
-          status: 'completed',
-          external_reference: 'REF-DEMO-001'
         }
       ];
 
@@ -181,7 +169,7 @@ export const generateDemoData = async () => {
 
     return {
       cardholders: cardholders.length,
-      transactions: 4,
+      transactions: 3,
       instance: instanceId ? 1 : 0
     };
 
