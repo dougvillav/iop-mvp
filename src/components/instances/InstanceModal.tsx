@@ -88,10 +88,32 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
           description: 'La instancia se actualizó correctamente',
         });
       } else {
-        // Create new instance - corregido para usar sintaxis correcta
+        // Create new instance - corregido para incluir organization_id y tipos correctos
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('Usuario no autenticado');
+
+        // Obtener el organization_id del perfil del usuario
+        const { data: userProfile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('organization_id')
+          .eq('id', userData.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        if (!userProfile?.organization_id) throw new Error('Usuario sin organización asignada');
+
+        // Preparar datos para inserción con tipos correctos
+        const insertData = {
+          legal_name: data.legal_name,
+          registration_id: data.registration_id || null,
+          country_iso: data.country_iso,
+          settlement_currency: data.settlement_currency,
+          organization_id: userProfile.organization_id,
+        };
+
         const { error } = await supabase
           .from('instances')
-          .insert(data);
+          .insert(insertData);
 
         if (error) throw error;
 
