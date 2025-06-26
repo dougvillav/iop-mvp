@@ -1,4 +1,3 @@
-
 import { Database } from '@/integrations/supabase/types';
 import type { Transaction, Cardholder, Instance, InstanceWallet } from '@/lib/types';
 
@@ -9,13 +8,38 @@ export interface TransactionWithDetails extends Transaction {
   instance_wallet: InstanceWallet;
 }
 
+// Tipos específicos para condition_value
+export type AmountThresholdCondition = {
+  threshold: number;
+  currency: string;
+};
+
+export type VelocityCondition = {
+  max_transactions: number;
+  time_window_hours: number;
+};
+
+export type BlacklistCondition = {
+  enabled: boolean;
+};
+
+export type GeographicCondition = {
+  countries: string[];
+  action_type: 'allow' | 'block';
+};
+
+export type MLScoreCondition = {
+  threshold: number;
+  model_version: string;
+};
+
 // Tipos para el sistema anti-fraude
 export type FraudRule = {
   id: string;
   name: string;
   description: string;
   condition_type: 'amount_threshold' | 'velocity' | 'blacklist' | 'geographic' | 'ml_score';
-  condition_value: Record<string, any>;
+  condition_value: AmountThresholdCondition | VelocityCondition | BlacklistCondition | GeographicCondition | MLScoreCondition;
   action: 'block' | 'review' | 'flag';
   priority: number;
   is_active: boolean;

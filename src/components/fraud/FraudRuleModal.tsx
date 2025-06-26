@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import type { FraudRule } from '@/lib/fraud-types';
+import type { FraudRule, AmountThresholdCondition, VelocityCondition } from '@/lib/fraud-types';
 
 interface FraudRuleModalProps {
   open: boolean;
@@ -22,18 +22,45 @@ interface FraudRuleModalProps {
   rule?: FraudRule;
 }
 
+type FormData = {
+  name: string;
+  description: string;
+  condition_type: FraudRule['condition_type'];
+  condition_value: FraudRule['condition_value'];
+  action: FraudRule['action'];
+  priority: number;
+  is_active: boolean;
+};
+
+const getDefaultConditionValue = (conditionType: FraudRule['condition_type']): FraudRule['condition_value'] => {
+  switch (conditionType) {
+    case 'amount_threshold':
+      return { threshold: 10000, currency: 'USD' };
+    case 'velocity':
+      return { max_transactions: 5, time_window_hours: 1 };
+    case 'blacklist':
+      return { enabled: true };
+    case 'geographic':
+      return { countries: [], action_type: 'block' as const };
+    case 'ml_score':
+      return { threshold: 0.8, model_version: 'v1' };
+    default:
+      return { threshold: 10000, currency: 'USD' };
+  }
+};
+
 export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
   open,
   onClose,
   onSave,
   rule
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
-    condition_type: 'amount_threshold' as const,
-    condition_value: { threshold: 10000, currency: 'USD' },
-    action: 'review' as const,
+    condition_type: 'amount_threshold',
+    condition_value: getDefaultConditionValue('amount_threshold'),
+    action: 'review',
     priority: 5,
     is_active: true
   });
@@ -54,7 +81,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
         name: '',
         description: '',
         condition_type: 'amount_threshold',
-        condition_value: { threshold: 10000, currency: 'USD' },
+        condition_value: getDefaultConditionValue('amount_threshold'),
         action: 'review',
         priority: 5,
         is_active: true
@@ -66,6 +93,14 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
     e.preventDefault();
     onSave(formData);
     onClose();
+  };
+
+  const handleConditionTypeChange = (newType: FraudRule['condition_type']) => {
+    setFormData(prev => ({
+      ...prev,
+      condition_type: newType,
+      condition_value: getDefaultConditionValue(newType)
+    }));
   };
 
   const updateConditionValue = (field: string, value: any) => {
@@ -110,7 +145,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
               <Label>Tipo de Condición</Label>
               <Select 
                 value={formData.condition_type} 
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, condition_type: value }))}
+                onValueChange={handleConditionTypeChange}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -129,7 +164,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
               <Label>Acción</Label>
               <Select 
                 value={formData.action} 
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, action: value }))}
+                onValueChange={(value: FraudRule['action']) => setFormData(prev => ({ ...prev, action: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -148,7 +183,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
               <Label>Monto Límite (USD)</Label>
               <Input
                 type="number"
-                value={formData.condition_value.threshold || 0}
+                value={(formData.condition_value as AmountThresholdCondition).threshold || 0}
                 onChange={(e) => updateConditionValue('threshold', parseFloat(e.target.value))}
               />
             </div>
@@ -160,7 +195,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
                 <Label>Máx. Transacciones</Label>
                 <Input
                   type="number"
-                  value={formData.condition_value.max_transactions || 5}
+                  value={(formData.condition_value as VelocityCondition).max_transactions || 5}
                   onChange={(e) => updateConditionValue('max_transactions', parseInt(e.target.value))}
                 />
               </div>
@@ -168,7 +203,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
                 <Label>Ventana de Tiempo (horas)</Label>
                 <Input
                   type="number"
-                  value={formData.condition_value.time_window_hours || 1}
+                  value={(formData.condition_value as VelocityCondition).time_window_hours || 1}
                   onChange={(e) => updateConditionValue('time_window_hours', parseInt(e.target.value))}
                 />
               </div>
