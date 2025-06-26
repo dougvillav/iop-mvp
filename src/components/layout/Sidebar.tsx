@@ -94,7 +94,7 @@ export const Sidebar = () => {
     <div className="flex h-screen w-64 flex-col bg-white border-r border-gray-200">
       {/* Header */}
       <div className="flex h-16 items-center justify-center border-b border-gray-200">
-        <h1 className="text-xl font-bold text-blue-600">PayoutsPro</h1>
+        <h1 className="text-xl font-bold text-blue-600">InOutPayments</h1>
       </div>
 
       {/* Navigation */}

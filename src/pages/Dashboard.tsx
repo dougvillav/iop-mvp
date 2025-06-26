@@ -1,5 +1,4 @@
 
-import { DemoDataGenerator } from '@/components/demo/DemoDataGenerator';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { VolumeChart } from '@/components/dashboard/VolumeChart';
 import { RecentPayouts } from '@/components/payouts/RecentPayouts';
@@ -25,11 +24,6 @@ const Dashboard = () => {
             Resumen general de tu plataforma de payouts
           </p>
         </div>
-      </div>
-
-      {/* Generador de datos demo */}
-      <div className="flex justify-center">
-        <DemoDataGenerator />
       </div>
 
       {/* KPIs Grid */}
