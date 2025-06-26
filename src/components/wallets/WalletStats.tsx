@@ -1,79 +1,35 @@
 
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Wallet, TrendingUp, AlertTriangle, DollarSign } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, DollarSign } from 'lucide-react';
+import type { OrgWallet, InstanceWallet, Instance } from '@/lib/types';
 
-export const WalletStats = () => {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['wallet-stats'],
-    queryFn: async () => {
-      // Obtener estadísticas de wallets organizacionales
-      const { data: orgWallets, error: orgError } = await supabase
-        .from('org_wallets')
-        .select('balance_available, threshold_min, currency');
-      
-      if (orgError) throw orgError;
+interface InstanceWalletWithInstance extends InstanceWallet {
+  instance: Instance;
+}
 
-      // Obtener estadísticas de wallets de instancia
-      const { data: instanceWallets, error: instanceError } = await supabase
-        .from('instance_wallets')
-        .select('balance_available, threshold_min, currency');
-      
-      if (instanceError) throw instanceError;
+interface WalletStatsProps {
+  orgWallets: OrgWallet[];
+  instanceWallets: InstanceWalletWithInstance[];
+}
 
-      // Calcular estadísticas
-      const totalOrgBalance = orgWallets?.reduce((sum, wallet) => 
-        sum + Number(wallet.balance_available), 0) || 0;
-      
-      const totalInstanceBalance = instanceWallets?.reduce((sum, wallet) => 
-        sum + Number(wallet.balance_available), 0) || 0;
-      
-      const totalBalance = totalOrgBalance + totalInstanceBalance;
-      
-      // Wallets con balance bajo
-      const lowBalanceWallets = [
-        ...orgWallets?.filter(w => Number(w.balance_available) < Number(w.threshold_min)) || [],
-        ...instanceWallets?.filter(w => Number(w.balance_available) < Number(w.threshold_min)) || []
-      ];
+export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) => {
+  const totalOrgBalance = orgWallets.reduce((sum, wallet) => 
+    sum + Number(wallet.balance_available), 0
+  );
 
-      // Monedas activas
-      const activeCurrencies = new Set([
-        ...orgWallets?.map(w => w.currency) || [],
-        ...instanceWallets?.map(w => w.currency) || []
-      ]);
+  const totalInstanceBalance = instanceWallets.reduce((sum, wallet) => 
+    sum + Number(wallet.balance_available), 0
+  );
 
-      return {
-        totalBalance,
-        totalOrgBalance,
-        totalInstanceBalance,
-        orgWalletsCount: orgWallets?.length || 0,
-        instanceWalletsCount: instanceWallets?.length || 0,
-        lowBalanceCount: lowBalanceWallets.length,
-        activeCurrenciesCount: activeCurrencies.size
-      };
+  const totalBalance = totalOrgBalance + totalInstanceBalance;
+
+  const currencyGroups = [...orgWallets, ...instanceWallets].reduce((acc, wallet) => {
+    if (!acc[wallet.currency]) {
+      acc[wallet.currency] = 0;
     }
-  });
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-4" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-7 w-24 mb-1" />
-              <Skeleton className="h-3 w-16" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
+    acc[wallet.currency] += Number(wallet.balance_available);
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -84,60 +40,53 @@ export const WalletStats = () => {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {new Intl.NumberFormat('es-MX', {
-              style: 'currency',
-              currency: 'USD'
-            }).format(stats?.totalBalance || 0)}
+            ${totalBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">
-            Todos los wallets
+            Suma de todos los wallets
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Wallets Activos</CardTitle>
+          <CardTitle className="text-sm font-medium">Wallets Organizacionales</CardTitle>
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            ${totalOrgBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {orgWallets.length} wallet{orgWallets.length !== 1 ? 's' : ''}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Wallets de Instancias</CardTitle>
           <Wallet className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {(stats?.orgWalletsCount || 0) + (stats?.instanceWalletsCount || 0)}
+            ${totalInstanceBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">
-            {stats?.orgWalletsCount} org + {stats?.instanceWalletsCount} instancia
+            {instanceWallets.length} wallet{instanceWallets.length !== 1 ? 's' : ''}
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Balance Bajo</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className={`text-2xl font-bold ${
-            (stats?.lowBalanceCount || 0) > 0 ? 'text-red-600' : 'text-green-600'
-          }`}>
-            {stats?.lowBalanceCount || 0}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Wallets bajo umbral
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Monedas</CardTitle>
+          <CardTitle className="text-sm font-medium">Monedas Activas</CardTitle>
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {stats?.activeCurrenciesCount || 0}
-          </div>
+          <div className="text-2xl font-bold">{Object.keys(currencyGroups).length}</div>
           <p className="text-xs text-muted-foreground">
-            Monedas activas
+            {Object.keys(currencyGroups).join(', ')}
           </p>
         </CardContent>
       </Card>

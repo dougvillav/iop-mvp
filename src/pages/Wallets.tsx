@@ -163,7 +163,6 @@ const Wallets = () => {
                         organization_id: wallet.instance.organization_id || ''
                       }}
                       type="instance"
-                      instanceName={wallet.instance.legal_name}
                     />
                   ))}
                 </div>
@@ -177,7 +176,7 @@ const Wallets = () => {
         isOpen={depositModalOpen}
         onClose={() => setDepositModalOpen(false)}
         onSuccess={handleSuccess}
-        orgWallets={orgWallets || []}
+        wallets={orgWallets || []}
       />
 
       <AllocationModal

@@ -132,8 +132,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
               <Input
                 id="full_name"
                 {...form.register('full_name')}
-                error={form.formState.errors.full_name?.message}
               />
+              {form.formState.errors.full_name && (
+                <p className="text-sm text-red-600">{form.formState.errors.full_name.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -142,8 +144,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
                 id="email"
                 type="email"
                 {...form.register('email')}
-                error={form.formState.errors.email?.message}
               />
+              {form.formState.errors.email && (
+                <p className="text-sm text-red-600">{form.formState.errors.email.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -151,8 +155,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
               <Input
                 id="phone"
                 {...form.register('phone')}
-                error={form.formState.errors.phone?.message}
               />
+              {form.formState.errors.phone && (
+                <p className="text-sm text-red-600">{form.formState.errors.phone.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -177,8 +183,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
             <Input
               id="address"
               {...form.register('address')}
-              error={form.formState.errors.address?.message}
             />
+            {form.formState.errors.address && (
+              <p className="text-sm text-red-600">{form.formState.errors.address.message}</p>
+            )}
           </div>
 
           <div className="border-t pt-4">
@@ -191,8 +199,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
                   id="card_number"
                   placeholder="1234 5678 9012 3456"
                   {...form.register('card_number')}
-                  error={form.formState.errors.card_number?.message}
                 />
+                {form.formState.errors.card_number && (
+                  <p className="text-sm text-red-600">{form.formState.errors.card_number.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -237,8 +247,10 @@ export const CardholderModal = ({ isOpen, onClose, onSuccess, cardholder }: Card
                   placeholder="123"
                   maxLength={4}
                   {...form.register('cvv')}
-                  error={form.formState.errors.cvv?.message}
                 />
+                {form.formState.errors.cvv && (
+                  <p className="text-sm text-red-600">{form.formState.errors.cvv.message}</p>
+                )}
               </div>
             </div>
           </div>
