@@ -1,207 +1,149 @@
 
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
-import { useForm } from 'react-hook-form';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { getCurrencySymbol } from '@/utils/constants';
 import type { OrgWallet } from '@/lib/types';
 
 interface DepositModalProps {
   isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  wallets: OrgWallet[];
-  selectedWallet?: OrgWallet | null;
+  onOpenChange: (open: boolean) => void;
+  wallet: OrgWallet;
 }
 
-interface DepositForm {
-  org_wallet_id: string;
-  amount: number;
-  reference: string;
-}
-
-export const DepositModal = ({ 
-  isOpen, 
-  onClose, 
-  onSuccess, 
-  wallets,
-  selectedWallet 
-}: DepositModalProps) => {
-  const { toast } = useToast();
+export const DepositModal = ({ isOpen, onOpenChange, wallet }: DepositModalProps) => {
+  const [amount, setAmount] = useState('');
+  const [reference, setReference] = useState('');
   
-  const form = useForm<DepositForm>({
-    defaultValues: {
-      org_wallet_id: selectedWallet?.id || '',
-      amount: 0,
-      reference: ''
-    }
-  });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const depositMutation = useMutation({
-    mutationFn: async (data: DepositForm) => {
-      const { data: result, error } = await supabase.rpc('create_deposit', {
-        p_org_wallet_id: data.org_wallet_id,
-        p_amount: data.amount,
-        p_reference: data.reference
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('create_deposit', {
+        p_org_wallet_id: wallet.id,
+        p_amount: parseFloat(amount),
+        p_reference: reference || `Depósito ${new Date().toLocaleDateString()}`
       });
-      
+
       if (error) throw error;
-      return result;
+      return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['org-wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-ledger'] });
       toast({
-        title: 'Depósito registrado',
-        description: 'El depósito se ha procesado correctamente',
+        title: 'Depósito realizado',
+        description: `Se ha depositado ${getCurrencySymbol(wallet.currency)}${amount} exitosamente.`,
       });
-      form.reset();
-      onSuccess();
+      onOpenChange(false);
+      setAmount('');
+      setReference('');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: 'Error al procesar depósito',
+        title: 'Error en el depósito',
         description: error.message,
         variant: 'destructive',
       });
-    }
+    },
   });
 
-  const onSubmit = (data: DepositForm) => {
-    depositMutation.mutate(data);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) {
+      toast({
+        title: 'Error',
+        description: 'El monto debe ser mayor a 0',
+        variant: 'destructive',
+      });
+      return;
+    }
+    depositMutation.mutate();
   };
 
-  const selectedWalletData = wallets.find(w => w.id === form.watch('org_wallet_id'));
-
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Registrar Depósito</DialogTitle>
-          <DialogDescription>
-            Añade fondos a un wallet organizacional
-          </DialogDescription>
+          <DialogTitle>
+            Depositar a Wallet {wallet.currency}
+          </DialogTitle>
         </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="amount">Monto *</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                {getCurrencySymbol(wallet.currency)}
+              </span>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="pl-8"
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="org_wallet_id"
-              rules={{ required: 'Selecciona un wallet' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Wallet de destino</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    defaultValue={selectedWallet?.id}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un wallet" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {wallets.map((wallet) => (
-                        <SelectItem key={wallet.id} value={wallet.id}>
-                          {wallet.currency} - {new Intl.NumberFormat('es-MX', {
-                            style: 'currency',
-                            currency: wallet.currency
-                          }).format(Number(wallet.balance_available))}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+          <div className="space-y-2">
+            <Label htmlFor="reference">Referencia</Label>
+            <Textarea
+              id="reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Descripción del depósito (opcional)"
+              rows={3}
             />
+          </div>
 
-            <FormField
-              control={form.control}
-              name="amount"
-              rules={{ 
-                required: 'El monto es requerido',
-                min: { value: 0.01, message: 'El monto debe ser mayor a 0' }
-              }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Monto {selectedWalletData && `(${selectedWalletData.currency})`}
-                  </FormLabel>
-                  <FormControl>
-                    <AmountInput
-                      placeholder="0.00"
-                      value={field.value ? field.value.toString() : ''}
-                      onChange={(value) => field.onChange(parseFloat(value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm text-gray-600">
+              <strong>Balance actual:</strong> {getCurrencySymbol(wallet.currency)}
+              {Number(wallet.balance_available).toLocaleString()}
+            </p>
+            {amount && (
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>Nuevo balance:</strong> {getCurrencySymbol(wallet.currency)}
+                {(Number(wallet.balance_available) + parseFloat(amount || '0')).toLocaleString()}
+              </p>
+            )}
+          </div>
 
-            <FormField
-              control={form.control}
-              name="reference"
-              rules={{ required: 'La referencia es requerida' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Referencia</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: Depósito inicial, Transferencia bancaria..."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={depositMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={depositMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {depositMutation.isPending ? 'Procesando...' : 'Registrar Depósito'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={depositMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={depositMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {depositMutation.isPending ? 'Procesando...' : 'Realizar Depósito'}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

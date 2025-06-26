@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,14 +8,26 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ArrowUpDown, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { TransactionCard } from '@/components/transactions/TransactionCard';
+import { TransactionFilters } from '@/components/transactions/TransactionFilters';
+import { startTransactionSimulation } from '@/utils/mockTransactionStatus';
 import type { TransactionWithDetails } from '@/lib/types';
 
 const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [dateFilters, setDateFilters] = useState<{
+    dateFrom?: Date;
+    dateTo?: Date;
+  }>({});
+
+  // Iniciar simulación de transacciones al montar el componente
+  useEffect(() => {
+    const stopSimulation = startTransactionSimulation();
+    return stopSimulation;
+  }, []);
 
   const { data: transactions, isLoading } = useQuery({
-    queryKey: ['transactions', searchTerm],
+    queryKey: ['transactions', searchTerm, dateFilters],
     queryFn: async () => {
       let query = supabase
         .from('transactions')
@@ -28,6 +40,14 @@ const Transactions = () => {
       
       if (searchTerm) {
         query = query.or(`external_reference.ilike.%${searchTerm}%,cardholder.full_name.ilike.%${searchTerm}%`);
+      }
+
+      if (dateFilters.dateFrom) {
+        query = query.gte('created_at', dateFilters.dateFrom.toISOString());
+      }
+
+      if (dateFilters.dateTo) {
+        query = query.lte('created_at', dateFilters.dateTo.toISOString());
       }
       
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -47,34 +67,18 @@ const Transactions = () => {
     return true;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'disputed':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleFiltersChange = (filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    searchTerm?: string;
+  }) => {
+    if (filters.searchTerm !== undefined) {
+      setSearchTerm(filters.searchTerm);
     }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Completada';
-      case 'pending':
-        return 'Pendiente';
-      case 'failed':
-        return 'Fallida';
-      case 'disputed':
-        return 'Disputada';
-      default:
-        return 'Desconocido';
-    }
+    setDateFilters({
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+    });
   };
 
   const getTotalsByType = () => {
@@ -175,6 +179,13 @@ const Transactions = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Filters */}
+      <TransactionFilters
+        onFiltersChange={handleFiltersChange}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+      />
 
       <div className="flex justify-between items-center bg-white p-4 rounded-lg border">
         <div>
