@@ -52,14 +52,34 @@ export const FraudRuleCard: React.FC<FraudRuleCardProps> = ({
     return 'secondary';
   };
 
+  const formatConditions = (conditionType: string, conditionValue: any) => {
+    switch (conditionType) {
+      case 'amount_threshold':
+        return `Monto > $${conditionValue.threshold?.toLocaleString() || 0} ${conditionValue.currency || 'USD'}`;
+      case 'velocity':
+        return `> ${conditionValue.max_transactions || 0} transacciones en ${conditionValue.time_window_hours || 1}h`;
+      case 'blacklist':
+        return 'Lista negra activada';
+      case 'geographic':
+        return `Países: ${conditionValue.countries?.join(', ') || 'No especificado'}`;
+      case 'ml_score':
+        return `Score ML > ${conditionValue.threshold || 0}`;
+      default:
+        return 'Condición personalizada';
+    }
+  };
+
   return (
-    <Card className={`transition-all ${rule.is_active ? 'border-green-200' : 'border-gray-200 opacity-75'}`}>
+    <Card className={`transition-all hover:shadow-md ${rule.is_active ? 'border-green-200 bg-green-50/30' : 'border-gray-200 opacity-75'}`}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{rule.name}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant={getPriorityColor(rule.priority)}>
-              Prioridad {rule.priority}
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg truncate">{rule.name}</CardTitle>
+            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{rule.description}</p>
+          </div>
+          <div className="flex items-center gap-2 ml-4">
+            <Badge variant={getPriorityColor(rule.priority) as any}>
+              P{rule.priority}
             </Badge>
             <Switch
               checked={rule.is_active}
@@ -69,37 +89,38 @@ export const FraudRuleCard: React.FC<FraudRuleCardProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-gray-600">{rule.description}</p>
-        
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Tipo:</span>
-            <Badge variant="outline">
+            <span className="text-sm font-medium text-gray-700">Tipo:</span>
+            <Badge variant="outline" className="text-xs">
               {rule.condition_type.replace('_', ' ')}
             </Badge>
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Acción:</span>
-            <Badge variant={getActionColor(rule.action)} className="flex items-center gap-1">
+            <span className="text-sm font-medium text-gray-700">Acción:</span>
+            <Badge variant={getActionColor(rule.action) as any} className="flex items-center gap-1">
               {getActionIcon(rule.action)}
-              {rule.action}
+              <span className="capitalize">{rule.action}</span>
             </Badge>
           </div>
         </div>
 
         <div className="bg-gray-50 p-3 rounded-lg">
-          <span className="text-sm font-medium">Condiciones:</span>
-          <pre className="text-xs mt-1 whitespace-pre-wrap">
-            {JSON.stringify(rule.condition_value, null, 2)}
-          </pre>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Condición:</span>
+          </div>
+          <p className="text-sm text-gray-900 mt-1 font-mono">
+            {formatConditions(rule.condition_type, rule.condition_value)}
+          </p>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onEdit(rule)}
+            className="text-blue-600 hover:text-blue-700"
           >
             <Edit className="h-4 w-4 mr-1" />
             Editar

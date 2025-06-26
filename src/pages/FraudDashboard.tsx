@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,68 +9,30 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Shield, Eye, TrendingUp, Plus } from 'lucide-react';
 import { FraudRuleCard } from '@/components/fraud/FraudRuleCard';
 import { FraudAlertCard } from '@/components/fraud/FraudAlertCard';
-import { useToast } from '@/hooks/use-toast';
-import type { FraudRule, FraudAlert, TransactionWithDetails } from '@/lib/fraud-types';
+import { FraudRuleModal } from '@/components/fraud/FraudRuleModal';
+import { DeleteConfirmModal } from '@/components/fraud/DeleteConfirmModal';
+import { useFraudRules } from '@/hooks/useFraudRules';
+import type { FraudRule, TransactionWithDetails } from '@/lib/fraud-types';
 
 const FraudDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const { toast } = useToast();
+  const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<FraudRule | undefined>();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
 
-  // Datos simulados para demo (en producción vendrían de Supabase)
-  const mockRules: FraudRule[] = [
-    {
-      id: '1',
-      name: 'Monto Alto',
-      description: 'Transacciones superiores a $10,000 USD',
-      condition_type: 'amount_threshold',
-      condition_value: { threshold: 10000, currency: 'USD' },
-      action: 'review',
-      priority: 8,
-      is_active: true,
-      created_at: '2025-01-01T00:00:00Z',
-      updated_at: '2025-01-01T00:00:00Z',
-    },
-    {
-      id: '2',
-      name: 'Velocidad Sospechosa',
-      description: 'Más de 5 transacciones en 1 hora',
-      condition_type: 'velocity',
-      condition_value: { max_transactions: 5, time_window_hours: 1 },
-      action: 'flag',
-      priority: 6,
-      is_active: true,
-      created_at: '2025-01-01T00:00:00Z',
-      updated_at: '2025-01-01T00:00:00Z',
-    },
-  ];
+  const {
+    rules,
+    alerts,
+    loading,
+    toggleRule,
+    createRule,
+    updateRule,
+    deleteRule,
+    updateAlert,
+  } = useFraudRules();
 
-  const mockAlerts: FraudAlert[] = [
-    {
-      id: '1',
-      transaction_id: 'txn_123',
-      alert_type: 'high_risk',
-      severity: 'high',
-      message: 'Transacción de monto alto detectada - $15,000 USD',
-      metadata: { amount: 15000, currency: 'USD', risk_score: 85 },
-      status: 'open',
-      created_at: '2025-01-01T10:00:00Z',
-      updated_at: '2025-01-01T10:00:00Z',
-    },
-    {
-      id: '2',
-      transaction_id: 'txn_124',
-      alert_type: 'suspicious_pattern',
-      severity: 'medium',
-      message: 'Patrón de velocidad sospechoso detectado',
-      metadata: { transactions_count: 7, time_window: '1 hour' },
-      status: 'investigating',
-      assigned_to: 'admin@example.com',
-      created_at: '2025-01-01T09:30:00Z',
-      updated_at: '2025-01-01T09:45:00Z',
-    },
-  ];
-
-  // Query para transacciones bajo revisión - corregido para usar status válido
+  // Query para transacciones bajo revisión
   const { data: reviewTransactions, isLoading: loadingReview } = useQuery({
     queryKey: ['fraud-review-transactions'],
     queryFn: async () => {
@@ -81,7 +43,7 @@ const FraudDashboard = () => {
           cardholder:cardholders(*),
           instance:instances(*)
         `)
-        .eq('status', 'pending') // Cambiado de 'under_review' a 'pending'
+        .eq('status', 'pending')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -89,43 +51,55 @@ const FraudDashboard = () => {
     }
   });
 
-  const handleRuleToggle = async (ruleId: string, isActive: boolean) => {
-    try {
-      // En producción, actualizar en Supabase
-      console.log(`Regla ${ruleId} ${isActive ? 'activada' : 'desactivada'}`);
-      toast({
-        title: `Regla ${isActive ? 'activada' : 'desactivada'}`,
-        description: 'El cambio se ha aplicado correctamente',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo actualizar la regla',
-        variant: 'destructive',
-      });
+  const handleCreateRule = () => {
+    setEditingRule(undefined);
+    setRuleModalOpen(true);
+  };
+
+  const handleEditRule = (rule: FraudRule) => {
+    setEditingRule(rule);
+    setRuleModalOpen(true);
+  };
+
+  const handleSaveRule = async (ruleData: Omit<FraudRule, 'id' | 'created_at' | 'updated_at'>) => {
+    if (editingRule) {
+      await updateRule(editingRule.id, ruleData);
+    } else {
+      await createRule(ruleData);
+    }
+  };
+
+  const handleDeleteClick = (ruleId: string) => {
+    setRuleToDelete(ruleId);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (ruleToDelete) {
+      await deleteRule(ruleToDelete);
+      setRuleToDelete(null);
+      setDeleteModalOpen(false);
     }
   };
 
   const handleAlertAction = async (alertId: string, action: 'resolve' | 'dismiss' | 'investigate') => {
-    try {
-      console.log(`Alerta ${alertId} - Acción: ${action}`);
-      toast({
-        title: 'Alerta actualizada',
-        description: `La alerta ha sido ${action === 'resolve' ? 'resuelta' : action === 'dismiss' ? 'descartada' : 'marcada para investigar'}`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo actualizar la alerta',
-        variant: 'destructive',
-      });
-    }
+    const statusMap = {
+      resolve: 'resolved' as const,
+      dismiss: 'false_positive' as const,
+      investigate: 'investigating' as const,
+    };
+    await updateAlert(alertId, statusMap[action]);
+  };
+
+  const handleTransactionAction = async (transactionId: string, action: 'approve' | 'reject') => {
+    // En producción, esto actualizaría el estado de la transacción en Supabase
+    console.log(`Transacción ${transactionId} ${action === 'approve' ? 'aprobada' : 'rechazada'}`);
   };
 
   const stats = {
-    totalRules: mockRules.length,
-    activeRules: mockRules.filter(r => r.is_active).length,
-    openAlerts: mockAlerts.filter(a => a.status === 'open').length,
+    totalRules: rules.length,
+    activeRules: rules.filter(r => r.is_active).length,
+    openAlerts: alerts.filter(a => a.status === 'open').length,
     reviewTransactions: reviewTransactions?.length || 0,
   };
 
@@ -138,60 +112,61 @@ const FraudDashboard = () => {
             Gestión de reglas, alertas y transacciones sospechosas
           </p>
         </div>
-        <Button>
+        <Button onClick={handleCreateRule} disabled={loading}>
           <Plus className="h-4 w-4 mr-2" />
           Nueva Regla
         </Button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards mejorados */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
-            <div className="flex items-center">
-              <Shield className="h-8 w-8 text-blue-600 mr-3" />
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Reglas Activas</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {stats.activeRules}/{stats.totalRules}
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold text-blue-600">{stats.activeRules}</p>
+                  <p className="text-sm text-gray-500">de {stats.totalRules}</p>
+                </div>
               </div>
+              <Shield className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="border-l-4 border-l-red-500">
           <CardContent className="p-4">
-            <div className="flex items-center">
-              <AlertTriangle className="h-8 w-8 text-red-600 mr-3" />
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Alertas Abiertas</p>
                 <p className="text-2xl font-bold text-red-600">{stats.openAlerts}</p>
               </div>
+              <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="border-l-4 border-l-yellow-500">
           <CardContent className="p-4">
-            <div className="flex items-center">
-              <Eye className="h-8 w-8 text-yellow-600 mr-3" />
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">En Revisión</p>
                 <p className="text-2xl font-bold text-yellow-600">{stats.reviewTransactions}</p>
               </div>
+              <Eye className="h-8 w-8 text-yellow-600" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="border-l-4 border-l-green-500">
           <CardContent className="p-4">
-            <div className="flex items-center">
-              <TrendingUp className="h-8 w-8 text-green-600 mr-3" />
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Efectividad</p>
                 <p className="text-2xl font-bold text-green-600">92%</p>
               </div>
+              <TrendingUp className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
@@ -200,9 +175,9 @@ const FraudDashboard = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="rules">Reglas</TabsTrigger>
-          <TabsTrigger value="alerts">Alertas</TabsTrigger>
-          <TabsTrigger value="review">Cola de Revisión</TabsTrigger>
+          <TabsTrigger value="rules">Reglas ({rules.length})</TabsTrigger>
+          <TabsTrigger value="alerts">Alertas ({alerts.length})</TabsTrigger>
+          <TabsTrigger value="review">Cola de Revisión ({stats.reviewTransactions})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -212,11 +187,11 @@ const FraudDashboard = () => {
                 <CardTitle>Alertas Recientes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {mockAlerts.slice(0, 3).map((alert) => (
+                {alerts.slice(0, 3).map((alert) => (
                   <div key={alert.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="font-medium">{alert.message}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium text-sm">{alert.message}</p>
+                      <p className="text-xs text-gray-600">
                         {alert.transaction_id} - {alert.severity}
                       </p>
                     </div>
@@ -233,11 +208,11 @@ const FraudDashboard = () => {
                 <CardTitle>Reglas Más Activas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {mockRules.map((rule) => (
+                {rules.slice(0, 3).map((rule) => (
                   <div key={rule.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="font-medium">{rule.name}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium text-sm">{rule.name}</p>
+                      <p className="text-xs text-gray-600">
                         Prioridad {rule.priority} - {rule.action}
                       </p>
                     </div>
@@ -253,13 +228,13 @@ const FraudDashboard = () => {
 
         <TabsContent value="rules" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {mockRules.map((rule) => (
+            {rules.map((rule) => (
               <FraudRuleCard
                 key={rule.id}
                 rule={rule}
-                onEdit={(rule) => console.log('Editar regla:', rule)}
-                onDelete={(id) => console.log('Eliminar regla:', id)}
-                onToggle={handleRuleToggle}
+                onEdit={handleEditRule}
+                onDelete={handleDeleteClick}
+                onToggle={toggleRule}
               />
             ))}
           </div>
@@ -267,7 +242,7 @@ const FraudDashboard = () => {
 
         <TabsContent value="alerts" className="space-y-6">
           <div className="space-y-4">
-            {mockAlerts.map((alert) => (
+            {alerts.map((alert) => (
               <FraudAlertCard
                 key={alert.id}
                 alert={alert}
@@ -298,7 +273,7 @@ const FraudDashboard = () => {
                     <div key={transaction.id} className="border rounded-lg p-4">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h3 className="font-medium">
+                          <h3 className="font-medium text-lg">
                             ${transaction.amount_brutto.toLocaleString()}
                           </h3>
                           <p className="text-sm text-gray-600">
@@ -308,10 +283,20 @@ const FraudDashboard = () => {
                         <Badge variant="secondary">En Revisión</Badge>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="text-green-600">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-green-600 hover:text-green-700"
+                          onClick={() => handleTransactionAction(transaction.id, 'approve')}
+                        >
                           Aprobar
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-600">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleTransactionAction(transaction.id, 'reject')}
+                        >
                           Rechazar
                         </Button>
                         <Button size="sm" variant="outline">
@@ -326,6 +311,21 @@ const FraudDashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <FraudRuleModal
+        open={ruleModalOpen}
+        onClose={() => setRuleModalOpen(false)}
+        onSave={handleSaveRule}
+        rule={editingRule}
+      />
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Eliminar Regla"
+        description="¿Estás seguro de que quieres eliminar esta regla? Esta acción no se puede deshacer."
+      />
     </div>
   );
 };
