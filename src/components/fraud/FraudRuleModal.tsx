@@ -112,7 +112,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {rule ? 'Editar Regla' : 'Nueva Regla de Fraude'}
@@ -127,6 +127,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               required
+              className="mt-1"
             />
           </div>
 
@@ -137,17 +138,18 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               required
+              className="mt-1 min-h-[80px]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Tipo de Condición</Label>
               <Select 
                 value={formData.condition_type} 
                 onValueChange={handleConditionTypeChange}
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -166,7 +168,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
                 value={formData.action} 
                 onValueChange={(value: FraudRule['action']) => setFormData(prev => ({ ...prev, action: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -185,18 +187,20 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
                 type="number"
                 value={(formData.condition_value as AmountThresholdCondition).threshold || 0}
                 onChange={(e) => updateConditionValue('threshold', parseFloat(e.target.value))}
+                className="mt-1"
               />
             </div>
           )}
 
           {formData.condition_type === 'velocity' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Máx. Transacciones</Label>
                 <Input
                   type="number"
                   value={(formData.condition_value as VelocityCondition).max_transactions || 5}
                   onChange={(e) => updateConditionValue('max_transactions', parseInt(e.target.value))}
+                  className="mt-1"
                 />
               </div>
               <div>
@@ -205,6 +209,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
                   type="number"
                   value={(formData.condition_value as VelocityCondition).time_window_hours || 1}
                   onChange={(e) => updateConditionValue('time_window_hours', parseInt(e.target.value))}
+                  className="mt-1"
                 />
               </div>
             </div>
@@ -222,7 +227,7 @@ export const FraudRuleModal: React.FC<FraudRuleModalProps> = ({
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>

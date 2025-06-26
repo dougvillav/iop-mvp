@@ -16,12 +16,12 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Payouts', href: '/payouts', icon: ArrowLeftRight },
-  { name: 'Transacciones', href: '/transactions', icon: CreditCard },
-  { name: 'Cardholders', href: '/cardholders', icon: Users },
   { name: 'Instancias', href: '/instances', icon: Building2 },
   { name: 'Wallets', href: '/wallets', icon: Wallet },
+  { name: 'Transacciones', href: '/transactions', icon: CreditCard },
+  { name: 'Cardholders', href: '/cardholders', icon: Users },
   { name: 'Anti-Fraude', href: '/fraud', icon: Shield },
+  { name: 'Payouts', href: '/payouts', icon: ArrowLeftRight },
 ];
 
 export const Sidebar = () => {
