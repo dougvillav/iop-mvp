@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   CreditCard,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Payouts', href: '/payouts', icon: ArrowLeftRight },
   { name: 'Transacciones', href: '/transactions', icon: CreditCard },
   { name: 'Cardholders', href: '/cardholders', icon: Users },
@@ -25,6 +26,15 @@ const navigation = [
 
 export const Sidebar = () => {
   const location = useLocation();
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
@@ -59,7 +69,10 @@ export const Sidebar = () => {
       </nav>
       
       <div className="flex-shrink-0 border-t border-gray-200 p-4">
-        <button className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+        <button 
+          onClick={handleSignOut}
+          className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900"
+        >
           <LogOut className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
           Cerrar Sesión
         </button>
