@@ -1,10 +1,14 @@
 
 import { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
-export const Layout = () => {
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
@@ -34,7 +38,7 @@ export const Layout = () => {
       <Sidebar />
       <main className="flex-1 overflow-auto">
         <div className="p-6">
-          <Outlet />
+          {children}
         </div>
       </main>
     </div>

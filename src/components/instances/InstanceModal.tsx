@@ -88,10 +88,10 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
           description: 'La instancia se actualizó correctamente',
         });
       } else {
-        // Create new instance
+        // Create new instance - corregido para usar sintaxis correcta
         const { error } = await supabase
           .from('instances')
-          .insert([data]);
+          .insert(data);
 
         if (error) throw error;
 

@@ -70,7 +70,7 @@ const FraudDashboard = () => {
     },
   ];
 
-  // Query para transacciones bajo revisión
+  // Query para transacciones bajo revisión - corregido para usar status válido
   const { data: reviewTransactions, isLoading: loadingReview } = useQuery({
     queryKey: ['fraud-review-transactions'],
     queryFn: async () => {
@@ -81,7 +81,7 @@ const FraudDashboard = () => {
           cardholder:cardholders(*),
           instance:instances(*)
         `)
-        .eq('status', 'under_review')
+        .eq('status', 'pending') // Cambiado de 'under_review' a 'pending'
         .order('created_at', { ascending: false });
       
       if (error) throw error;
