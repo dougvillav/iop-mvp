@@ -6,28 +6,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useForm } from 'react-hook-form';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { Instance } from '@/lib/types';
 
@@ -38,297 +23,232 @@ interface InstanceModalProps {
   instance?: Instance | null;
 }
 
-interface InstanceForm {
-  legal_name: string;
-  country_iso: string;
-  settlement_currency: string;
-  registration_id?: string;
-  status: string;
-}
-
-const countries = [
-  { code: 'MX', name: 'México' },
-  { code: 'US', name: 'Estados Unidos' },
-  { code: 'CA', name: 'Canadá' },
-  { code: 'BR', name: 'Brasil' },
-  { code: 'AR', name: 'Argentina' },
-  { code: 'CO', name: 'Colombia' },
-  { code: 'CL', name: 'Chile' },
-  { code: 'PE', name: 'Perú' },
+const CURRENCIES = [
+  { value: 'USD', label: 'Dólar Estadounidense (USD)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'MXN', label: 'Peso Mexicano (MXN)' },
+  { value: 'CAD', label: 'Dólar Canadiense (CAD)' },
 ];
 
-const currencies = [
-  { code: 'USD', name: 'Dólar Estadounidense' },
-  { code: 'MXN', name: 'Peso Mexicano' },
-  { code: 'CAD', name: 'Dólar Canadiense' },
-  { code: 'BRL', name: 'Real Brasileño' },
-  { code: 'ARS', name: 'Peso Argentino' },
-  { code: 'COP', name: 'Peso Colombiano' },
-  { code: 'CLP', name: 'Peso Chileno' },
-  { code: 'PEN', name: 'Sol Peruano' },
+const COUNTRIES = [
+  { value: 'US', label: 'Estados Unidos' },
+  { value: 'MX', label: 'México' },
+  { value: 'CA', label: 'Canadá' },
+  { value: 'ES', label: 'España' },
+  { value: 'FR', label: 'Francia' },
+  { value: 'DE', label: 'Alemania' },
 ];
 
-export const InstanceModal = ({ 
-  isOpen, 
-  onClose, 
-  onSuccess, 
-  instance 
-}: InstanceModalProps) => {
-  const { toast } = useToast();
-  const isEditing = !!instance;
-  
-  const form = useForm<InstanceForm>({
-    defaultValues: {
-      legal_name: '',
-      country_iso: '',
-      settlement_currency: '',
-      registration_id: '',
-      status: 'active'
-    }
+export const InstanceModal = ({ isOpen, onClose, onSuccess, instance }: InstanceModalProps) => {
+  const [formData, setFormData] = useState({
+    legal_name: '',
+    registration_id: '',
+    country_iso: '',
+    settlement_currency: '',
+    status: 'active'
   });
+  const { toast } = useToast();
 
   useEffect(() => {
     if (instance) {
-      form.reset({
-        legal_name: instance.legal_name,
-        country_iso: instance.country_iso,
-        settlement_currency: instance.settlement_currency,
+      setFormData({
+        legal_name: instance.legal_name || '',
         registration_id: instance.registration_id || '',
+        country_iso: instance.country_iso || '',
+        settlement_currency: instance.settlement_currency || '',
         status: instance.status || 'active'
       });
     } else {
-      form.reset({
+      setFormData({
         legal_name: '',
+        registration_id: '',
         country_iso: '',
         settlement_currency: '',
-        registration_id: '',
         status: 'active'
       });
     }
-  }, [instance, form]);
+  }, [instance]);
 
-  const instanceMutation = useMutation({
-    mutationFn: async (data: InstanceForm) => {
+  const createInstanceMutation = useMutation({
+    mutationFn: async () => {
       // Obtener la organización del usuario actual
-      const { data: userProfile, error: userError } = await supabase
+      const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
         .eq('id', (await supabase.auth.getUser()).data.user?.id)
         .single();
-      
-      if (userError || !userProfile?.organization_id) {
-        throw new Error('No se pudo obtener la organización del usuario');
+
+      if (!profile?.organization_id) {
+        throw new Error('No se encontró la organización del usuario');
       }
 
-      if (isEditing && instance) {
-        const { data: result, error } = await supabase
+      const instanceData = {
+        ...formData,
+        organization_id: profile.organization_id
+      };
+
+      if (instance) {
+        // Actualizar instancia existente
+        const { data, error } = await supabase
           .from('instances')
-          .update({
-            legal_name: data.legal_name,
-            country_iso: data.country_iso,
-            settlement_currency: data.settlement_currency,
-            registration_id: data.registration_id || null,
-            status: data.status,
-            updated_at: new Date().toISOString()
-          })
+          .update(instanceData)
           .eq('id', instance.id)
           .select()
           .single();
-        
+
         if (error) throw error;
-        return result;
+        return data;
       } else {
-        const { data: result, error } = await supabase
+        // Crear nueva instancia
+        const { data, error } = await supabase
           .from('instances')
-          .insert({
-            legal_name: data.legal_name,
-            country_iso: data.country_iso,
-            settlement_currency: data.settlement_currency,
-            registration_id: data.registration_id || null,
-            status: data.status,
-            organization_id: userProfile.organization_id
-          })
+          .insert([instanceData])
           .select()
           .single();
-        
+
         if (error) throw error;
-        return result;
+        return data;
       }
     },
     onSuccess: () => {
       toast({
-        title: isEditing ? 'Instancia actualizada' : 'Instancia creada',
-        description: isEditing 
-          ? 'La instancia se ha actualizado correctamente'
-          : 'La instancia se ha creado correctamente y sus wallets están listos',
+        title: instance ? 'Instancia actualizada' : 'Instancia creada',
+        description: instance 
+          ? 'La instancia se ha actualizado exitosamente'
+          : 'La instancia se ha creado exitosamente y los wallets han sido configurados automáticamente',
       });
-      form.reset();
       onSuccess();
+      onClose();
     },
     onError: (error) => {
+      console.error('Error al crear/actualizar instancia:', error);
       toast({
-        title: isEditing ? 'Error al actualizar' : 'Error al crear instancia',
-        description: error.message,
+        title: 'Error',
+        description: error.message || 'No se pudo procesar la instancia',
         variant: 'destructive',
       });
     }
   });
 
-  const onSubmit = (data: InstanceForm) => {
-    instanceMutation.mutate(data);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.legal_name || !formData.country_iso || !formData.settlement_currency) {
+      toast({
+        title: 'Campos requeridos',
+        description: 'Por favor completa todos los campos obligatorios',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    createInstanceMutation.mutate();
+  };
+
+  const handleClose = () => {
+    if (!createInstanceMutation.isPending) {
+      onClose();
+    }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Editar Instancia' : 'Nueva Instancia'}
+            {instance ? 'Editar Instancia' : 'Nueva Instancia'}
           </DialogTitle>
           <DialogDescription>
-            {isEditing 
-              ? 'Actualiza los datos de la instancia'
+            {instance 
+              ? 'Modifica los datos de la instancia'
               : 'Crea una nueva instancia para procesar pagos'
             }
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="legal_name"
-              rules={{ required: 'El nombre legal es requerido' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre Legal</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: Fintech Solutions México S.A. de C.V."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="legal_name">Nombre Legal *</Label>
+            <Input
+              id="legal_name"
+              value={formData.legal_name}
+              onChange={(e) => setFormData(prev => ({ ...prev, legal_name: e.target.value }))}
+              placeholder="Ej: Empresa SA de CV"
+              required
             />
+          </div>
 
-            <FormField
-              control={form.control}
-              name="country_iso"
-              rules={{ required: 'Selecciona un país' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>País</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un país" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {countries.map((country) => (
-                        <SelectItem key={country.code} value={country.code}>
-                          {country.name} ({country.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+          <div className="space-y-2">
+            <Label htmlFor="registration_id">ID de Registro</Label>
+            <Input
+              id="registration_id"
+              value={formData.registration_id}
+              onChange={(e) => setFormData(prev => ({ ...prev, registration_id: e.target.value }))}
+              placeholder="Ej: RFC, Tax ID, etc."
             />
+          </div>
 
-            <FormField
-              control={form.control}
-              name="settlement_currency"
-              rules={{ required: 'Selecciona una moneda' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Moneda de Liquidación</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona una moneda" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {currencies.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
-                          {currency.name} ({currency.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="space-y-2">
+            <Label htmlFor="country_iso">País *</Label>
+            <Select
+              value={formData.country_iso}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, country_iso: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un país" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map((country) => (
+                  <SelectItem key={country.value} value={country.value}>
+                    {country.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <FormField
-              control={form.control}
-              name="registration_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ID de Registro (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: RFC, Tax ID, etc."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="space-y-2">
+            <Label htmlFor="settlement_currency">Moneda de Liquidación *</Label>
+            <Select
+              value={formData.settlement_currency}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, settlement_currency: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona una moneda" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((currency) => (
+                  <SelectItem key={currency.value} value={currency.value}>
+                    {currency.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estado</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Activa</SelectItem>
-                      <SelectItem value="inactive">Inactiva</SelectItem>
-                      <SelectItem value="suspended">Suspendida</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={instanceMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={instanceMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {instanceMutation.isPending 
-                  ? 'Procesando...' 
-                  : isEditing 
-                  ? 'Actualizar' 
-                  : 'Crear Instancia'
-                }
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={createInstanceMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={createInstanceMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {createInstanceMutation.isPending 
+                ? 'Procesando...' 
+                : instance 
+                ? 'Actualizar' 
+                : 'Crear Instancia'
+              }
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
