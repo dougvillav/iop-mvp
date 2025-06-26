@@ -556,6 +556,10 @@ export type Database = {
         Args: { p_org_wallet_id: string; p_amount: number; p_reference: string }
         Returns: string
       }
+      create_instance_wallets: {
+        Args: { p_instance_id: string; p_settlement_currency: string }
+        Returns: undefined
+      }
       create_payout: {
         Args: {
           p_instance_id: string

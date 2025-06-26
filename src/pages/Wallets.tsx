@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, ArrowUpDown } from 'lucide-react';
 import { WalletCard } from '@/components/wallets/WalletCard';
+import { WalletStats } from '@/components/wallets/WalletStats';
 import { DepositModal } from '@/components/wallets/DepositModal';
 import { AllocationModal } from '@/components/wallets/AllocationModal';
-import { Plus, ArrowUpDown } from 'lucide-react';
 import type { OrgWallet, InstanceWallet, Instance } from '@/lib/types';
 
 const Wallets = () => {
@@ -16,8 +16,8 @@ const Wallets = () => {
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<OrgWallet | null>(null);
 
-  // Query para wallets organizacionales
-  const { data: orgWallets, isLoading: orgWalletsLoading, refetch: refetchOrgWallets } = useQuery({
+  // Fetch organizational wallets
+  const { data: orgWallets, isLoading: orgLoading, refetch: refetchOrgWallets } = useQuery({
     queryKey: ['org-wallets'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -26,26 +26,21 @@ const Wallets = () => {
         .order('currency');
       
       if (error) throw error;
-      return data as OrgWallet[];
+      return data;
     }
   });
 
-  // Query para wallets de instancias con detalles
-  const { data: instanceWallets, isLoading: instanceWalletsLoading, refetch: refetchInstanceWallets } = useQuery({
+  // Fetch instance wallets with instance data
+  const { data: instanceWallets, isLoading: instanceLoading, refetch: refetchInstanceWallets } = useQuery({
     queryKey: ['instance-wallets'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instance_wallets')
         .select(`
           *,
-          instance:instances(
-            id,
-            legal_name,
-            country_iso,
-            settlement_currency
-          )
+          instance:instances(*)
         `)
-        .order('instance_id');
+        .order('currency');
       
       if (error) throw error;
       return data as (InstanceWallet & { instance: Instance })[];
@@ -65,8 +60,8 @@ const Wallets = () => {
     setSelectedWallet(null);
   };
 
-  const openDepositModal = (wallet: OrgWallet) => {
-    setSelectedWallet(wallet);
+  const openDepositModal = (wallet?: OrgWallet) => {
+    setSelectedWallet(wallet || null);
     setDepositModalOpen(true);
   };
 
@@ -75,44 +70,73 @@ const Wallets = () => {
     setAllocationModalOpen(true);
   };
 
+  if (orgLoading || instanceLoading) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Wallets</h1>
-        <p className="text-gray-600 mt-1">Administra balances y asignaciones de fondos</p>
+    <div className="container mx-auto py-8 space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Gestión de Wallets</h1>
+        <Button
+          onClick={() => openDepositModal()}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nuevo Depósito
+        </Button>
       </div>
 
-      <Tabs defaultValue="organization" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="organization">Wallets Organizacionales</TabsTrigger>
+      {/* Estadísticas */}
+      <WalletStats />
+
+      <Tabs defaultValue="organizational" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="organizational">Wallets Organizacionales</TabsTrigger>
           <TabsTrigger value="instances">Wallets de Instancias</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="organization" className="space-y-6">
+        <TabsContent value="organizational" className="space-y-6">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-900">Wallets por Moneda</h2>
-            <Button
-              onClick={() => setDepositModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Depósito
-            </Button>
+            <h2 className="text-xl font-semibold">Wallets Organizacionales</h2>
+            <p className="text-gray-600">
+              {orgWallets?.length || 0} wallet{orgWallets?.length !== 1 ? 's' : ''}
+            </p>
           </div>
 
-          {orgWalletsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-6">
-                    <div className="h-24 bg-gray-200 rounded"></div>
-                  </CardContent>
-                </Card>
-              ))}
+          {!orgWallets?.length ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <ArrowUpDown className="h-12 w-12 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No hay wallets organizacionales
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Los wallets se crean automáticamente cuando registras fondos
+              </p>
+              <Button
+                onClick={() => openDepositModal()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Registrar Primer Depósito
+              </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {orgWallets?.map((wallet) => (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {orgWallets.map((wallet) => (
                 <WalletCard
                   key={wallet.id}
                   wallet={wallet}
@@ -126,98 +150,48 @@ const Wallets = () => {
         </TabsContent>
 
         <TabsContent value="instances" className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Wallets por Instancia</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Administra fondos asignados a cada instancia legal
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Wallets de Instancias</h2>
+            <p className="text-gray-600">
+              {instanceWallets?.length || 0} wallet{instanceWallets?.length !== 1 ? 's' : ''}
             </p>
           </div>
 
-          {instanceWalletsLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-6">
-                    <div className="h-20 bg-gray-200 rounded"></div>
-                  </CardContent>
-                </Card>
-              ))}
+          {!instanceWallets?.length ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <ArrowUpDown className="h-12 w-12 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No hay wallets de instancias
+              </h3>
+              <p className="text-gray-600">
+                Los wallets se crean automáticamente al registrar instancias
+              </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {instanceWallets?.map((wallet) => (
-                <Card key={wallet.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base">
-                          {wallet.instance.legal_name}
-                        </CardTitle>
-                        <CardDescription>
-                          {wallet.instance.country_iso} • {wallet.currency}
-                        </CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const orgWallet = orgWallets?.find(w => w.currency === wallet.currency);
-                          if (orgWallet) openAllocationModal(orgWallet);
-                        }}
-                      >
-                        <ArrowUpDown className="h-4 w-4 mr-2" />
-                        Asignar Fondos
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {new Intl.NumberFormat('es-MX', {
-                            style: 'currency',
-                            currency: wallet.currency
-                          }).format(Number(wallet.balance_available))}
-                        </p>
-                        <p className="text-sm text-gray-500">Balance disponible</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-gray-700">
-                          Umbral mínimo: {new Intl.NumberFormat('es-MX', {
-                            style: 'currency',
-                            currency: wallet.currency
-                          }).format(Number(wallet.threshold_min))}
-                        </p>
-                        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          Number(wallet.balance_available) > Number(wallet.threshold_min)
-                            ? 'bg-green-100 text-green-800'
-                            : Number(wallet.balance_available) > Number(wallet.threshold_min) * 0.5
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {Number(wallet.balance_available) > Number(wallet.threshold_min)
-                            ? 'Saludable'
-                            : Number(wallet.balance_available) > Number(wallet.threshold_min) * 0.5
-                            ? 'Atención'
-                            : 'Crítico'
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {instanceWallets.map((wallet) => (
+                <div key={wallet.id} className="space-y-2">
+                  <WalletCard
+                    wallet={wallet}
+                    type="instance"
+                  />
+                  <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    <p className="font-medium">{wallet.instance.legal_name}</p>
+                    <p>{wallet.instance.country_iso}</p>
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
+      {/* Modals */}
       <DepositModal
         isOpen={depositModalOpen}
-        onClose={() => {
-          setDepositModalOpen(false);
-          setSelectedWallet(null);
-        }}
+        onClose={() => setDepositModalOpen(false)}
         onSuccess={handleDepositSuccess}
         wallets={orgWallets || []}
         selectedWallet={selectedWallet}
@@ -225,10 +199,7 @@ const Wallets = () => {
 
       <AllocationModal
         isOpen={allocationModalOpen}
-        onClose={() => {
-          setAllocationModalOpen(false);
-          setSelectedWallet(null);
-        }}
+        onClose={() => setAllocationModalOpen(false)}
         onSuccess={handleAllocationSuccess}
         sourceWallet={selectedWallet}
         instanceWallets={instanceWallets || []}
