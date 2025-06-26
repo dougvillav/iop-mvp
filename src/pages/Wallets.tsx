@@ -26,7 +26,7 @@ const Wallets = () => {
         .order('currency');
       
       if (error) throw error;
-      return data;
+      return data as OrgWallet[];
     }
   });
 

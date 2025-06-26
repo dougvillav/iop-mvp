@@ -1,5 +1,4 @@
-
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, 
@@ -67,7 +66,32 @@ const navItems = [
 ];
 
 export const Sidebar = () => {
+  const navigate = useNavigate();
   const location = useLocation();
+  
+  const menuItems = [
+    {
+      name: 'Dashboard', 
+      path: '/dashboard',
+      icon: BarChart3
+    },
+    {
+      name: 'Instancias',
+      path: '/instances', 
+      icon: Building2
+    },
+    {
+      name: 'Wallets',
+      path: '/wallets',
+      icon: Wallet
+    },
+    {
+      name: 'Payouts',
+      path: '/payouts',
+      icon: CreditCard
+    }
+  ];
+
   const { profile, signOut } = useAuth();
 
   const handleSignOut = async () => {
