@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePickerWithRange } from '@/components/ui/date-picker';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileText, Filter, Calendar, Building2, DollarSign, TrendingUp, CreditCard } from 'lucide-react';
+import { Download, FileText, Filter, Calendar, Building2, DollarSign, TrendingUp, CreditCard, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formatters';
@@ -88,12 +87,62 @@ const Reconciliation = () => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      // Simular exportación - aquí implementarías la lógica real
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Check if data exceeds 100 lines
+      if (data.length > 100) {
+        toast({
+          title: 'Límite de Exportación',
+          description: `Solo se exportarán las primeras 100 líneas de ${data.length} registros encontrados.`,
+          variant: 'default',
+        });
+      }
+
+      // Prepare CSV data (first 100 records)
+      const exportData = data.slice(0, 100);
+      
+      const csvHeaders = [
+        'Fecha',
+        'Instancia',
+        'Tipo de Transacción',
+        'Rail',
+        'Transacciones Completadas',
+        'Total Procesado',
+        'Comisiones',
+        'Impuestos',
+        'Ingresos Netos'
+      ];
+
+      const csvRows = exportData.map(item => [
+        item.transaction_date ? new Date(item.transaction_date).toLocaleDateString('es-MX') : '-',
+        item.instance_name || '-',
+        item.transaction_type === 'pay_out' ? 'Payout' : 'Pay-in',
+        item.rail || '-',
+        Number(item.completed_transactions || 0).toLocaleString(),
+        `${Number(item.total_processed || 0).toFixed(2)} ${item.settlement_currency}`,
+        `${Number(item.total_commission || 0).toFixed(2)} ${item.settlement_currency}`,
+        `${Number(item.total_tax || 0).toFixed(2)} ${item.settlement_currency}`,
+        `${Number(item.total_net || 0).toFixed(2)} ${item.settlement_currency}`
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        csvHeaders.join(','),
+        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `reporte_conciliacion_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast({
         title: 'Éxito',
-        description: 'Reporte exportado correctamente',
+        description: `Reporte exportado correctamente (${exportData.length} registros)`,
       });
     } catch (error) {
       console.error('Error exporting data:', error);
@@ -149,10 +198,18 @@ const Reconciliation = () => {
           <h1 className="text-3xl font-bold text-gray-900">Conciliación</h1>
           <p className="text-gray-600">Monitoreo de ingresos y comisiones por transacciones procesadas</p>
         </div>
-        <Button onClick={handleExport} disabled={exporting} className="bg-blue-600 hover:bg-blue-700">
-          <Download className="h-4 w-4 mr-2" />
-          {exporting ? 'Exportando...' : 'Exportar Reporte'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {data.length > 100 && (
+            <div className="flex items-center gap-1 text-amber-600 text-sm">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Exportación limitada a 100 líneas</span>
+            </div>
+          )}
+          <Button onClick={handleExport} disabled={exporting} className="bg-blue-600 hover:bg-blue-700">
+            <Download className="h-4 w-4 mr-2" />
+            {exporting ? 'Exportando...' : 'Exportar CSV'}
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -316,7 +373,19 @@ const Reconciliation = () => {
       {/* Tabla de Datos */}
       <Card>
         <CardHeader>
-          <CardTitle>Datos de Conciliación</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Datos de Conciliación</CardTitle>
+            {data.length > 0 && (
+              <div className="text-sm text-gray-500">
+                {data.length} registros encontrados
+                {data.length > 100 && (
+                  <span className="text-amber-600 ml-2">
+                    (CSV limitado a 100)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (

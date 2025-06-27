@@ -5,8 +5,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle } from 'lucide-react';
-import type { Instance } from '@/lib/types';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import type { Instance, InstanceTariffConfig } from '@/lib/types';
 
 interface PayoutData {
   amount?: number;
@@ -24,11 +26,65 @@ interface PayoutConfigurationProps {
 export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigurationProps) => {
   const [amount, setAmount] = useState(data.amount?.toString() || '');
   const [rail, setRail] = useState(data.rail || 'visa_direct');
+  const [tariffConfigs, setTariffConfigs] = useState<InstanceTariffConfig[]>([]);
+  const [loadingTariffs, setLoadingTariffs] = useState(false);
+  const { toast } = useToast();
 
   const amountNum = parseFloat(amount) || 0;
-  const commission = amountNum * 0.025; // 2.5% commission
-  const tax = commission * 0.16; // 16% tax on commission
-  const netAmount = amountNum - commission - tax;
+
+  // Get current tariff configuration
+  const currentTariff = tariffConfigs.find(
+    config => config.transaction_type === 'pay_out' && 
+              config.rail === rail && 
+              config.is_active
+  );
+
+  // Calculate commission and tax based on tariff config
+  const calculateCosts = () => {
+    if (!currentTariff || amountNum === 0) {
+      return { commission: 0, tax: 0, processingFee: 0, netAmount: amountNum };
+    }
+
+    const commissionPercentage = Number(currentTariff.commission_percentage) || 0;
+    const commissionFixed = Number(currentTariff.commission_fixed) || 0;
+    const taxPercentage = Number(currentTariff.tax_percentage) || 0;
+    const processingFee = Number(currentTariff.processing_fee) || 0;
+
+    const commission = (amountNum * commissionPercentage) + commissionFixed;
+    const tax = commission * taxPercentage;
+    const netAmount = amountNum - commission - tax - processingFee;
+
+    return { commission, tax, processingFee, netAmount };
+  };
+
+  const { commission, tax, processingFee, netAmount } = calculateCosts();
+
+  const loadTariffConfigs = async () => {
+    setLoadingTariffs(true);
+    try {
+      const { data: configs, error } = await supabase
+        .from('instance_tariff_configs')
+        .select('*')
+        .eq('instance_id', instance.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setTariffConfigs(configs || []);
+    } catch (error) {
+      console.error('Error loading tariff configs:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar las configuraciones de tarifas',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingTariffs(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTariffConfigs();
+  }, [instance.id]);
 
   useEffect(() => {
     onChange({
@@ -88,29 +144,60 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
 
           <div>
             <Label>Selecciona el Rail de Pago</Label>
+            {loadingTariffs && (
+              <div className="flex items-center gap-2 mb-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-gray-600">Cargando tarifas...</span>
+              </div>
+            )}
             <RadioGroup value={rail} onValueChange={(value) => setRail(value as 'visa_direct' | 'mastercard_send')}>
-              {railOptions.map((option) => (
-                <div key={option.value} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option.value} id={option.value} />
-                  <Label htmlFor={option.value} className="flex-1 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{option.label}</p>
-                        <p className="text-sm text-gray-600">{option.description}</p>
+              {railOptions.map((option) => {
+                const railTariff = tariffConfigs.find(
+                  config => config.transaction_type === 'pay_out' && 
+                           config.rail === option.value && 
+                           config.is_active
+                );
+                
+                return (
+                  <div key={option.value} className="flex items-center space-x-2">
+                    <RadioGroupItem value={option.value} id={option.value} />
+                    <Label htmlFor={option.value} className="flex-1 cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{option.label}</p>
+                          <p className="text-sm text-gray-600">{option.description}</p>
+                          {railTariff && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              Comisión: {(Number(railTariff.commission_percentage) * 100).toFixed(2)}% + ${Number(railTariff.commission_fixed).toFixed(2)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={option.available ? "default" : "secondary"}>
+                            {option.available ? "Disponible" : "No disponible"}
+                          </Badge>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Límite: ${option.dailyLimit.toLocaleString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <Badge variant={option.available ? "default" : "secondary"}>
-                          {option.available ? "Disponible" : "No disponible"}
-                        </Badge>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Límite: ${option.dailyLimit.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              ))}
+                    </Label>
+                  </div>
+                );
+              })}
             </RadioGroup>
+
+            {!loadingTariffs && tariffConfigs.length === 0 && (
+              <div className="flex items-start space-x-2 p-3 bg-amber-50 rounded-lg mt-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800">Sin Configuración de Tarifas</p>
+                  <p className="text-amber-700">
+                    No hay tarifas configuradas para esta instancia. Se aplicarán tarifas por defecto.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -127,14 +214,25 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
             </div>
             
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Comisión (2.5%):</span>
+              <span>
+                Comisión {currentTariff ? `(${(Number(currentTariff.commission_percentage) * 100).toFixed(2)}% + $${Number(currentTariff.commission_fixed).toFixed(2)})` : ''}:
+              </span>
               <span>-${commission.toFixed(2)}</span>
             </div>
             
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Impuesto (16%):</span>
+              <span>
+                Impuesto {currentTariff ? `(${(Number(currentTariff.tax_percentage) * 100).toFixed(2)}%)` : ''}:
+              </span>
               <span>-${tax.toFixed(2)}</span>
             </div>
+
+            {processingFee > 0 && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Fee de procesamiento:</span>
+                <span>-${processingFee.toFixed(2)}</span>
+              </div>
+            )}
             
             <hr />
             
