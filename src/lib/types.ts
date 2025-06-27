@@ -16,6 +16,8 @@ export type UserProfile = Tables<'user_profiles'>;
 export type PayoutConfig = Tables<'payout_configs'>;
 export type WalletLedger = Tables<'wallet_ledger'>;
 export type InstanceTariffConfig = Tables<'instance_tariff_configs'>;
+export type OrgFxRate = Tables<'org_fx_rates'>;
+export type Allocation = Tables<'allocations'>;
 
 // Enums
 export type AppRole = Database['public']['Enums']['app_role'];
@@ -42,13 +44,13 @@ export interface WalletWithLedger extends OrgWallet {
 export interface CreatePayoutForm {
   instance_id: string;
   cardholder_id: string;
-  amount_brutto: number; // Cambiado de 'amount' a 'amount_brutto' para claridad
+  amount_brutto: number;
   rail: 'visa_direct' | 'mastercard_send';
   commission?: number;
   tax?: number;
   processing_fee?: number;
   fx_rate?: number;
-  total_debit?: number; // Nuevo: total a debitar de la wallet
+  total_debit?: number;
 }
 
 export interface CreateCardholderForm {
@@ -57,7 +59,7 @@ export interface CreateCardholderForm {
   phone?: string;
   country?: string;
   address?: string;
-  card_number: string; // Se tokenizará
+  card_number: string;
   expiry_month: string;
   expiry_year: string;
   cvv: string;
@@ -81,7 +83,23 @@ export interface TariffConfigForm {
   is_active: boolean;
 }
 
-// Tipos para conciliación - ahora basados en transacciones individuales
+// Tipos para configuración de FX rates
+export interface FxRateForm {
+  from_currency: string;
+  to_currency: string;
+  rate: number;
+  is_active: boolean;
+}
+
+export interface CreateAllocationForm {
+  org_wallet_id: string;
+  instance_wallet_id: string;
+  amount_origin: number;
+  fx_rate: number;
+  amount_destination: number;
+}
+
+// Tipos para conciliación
 export interface ReconciliationTransaction {
   id: string;
   created_at: string;

@@ -1,6 +1,6 @@
 
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -27,9 +27,10 @@ import {
 } from '@/components/ui/select';
 import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useForm } from 'react-hook-form';
 import { useToast } from '@/hooks/use-toast';
-import type { OrgWallet, InstanceWallet, Instance } from '@/lib/types';
+import type { OrgWallet, InstanceWallet, Instance, OrgFxRate, CreateAllocationForm } from '@/lib/types';
 
 interface InstanceWalletWithInstance extends InstanceWallet {
   instance: Instance;
@@ -43,12 +44,6 @@ interface AllocationModalProps {
   instanceWallets: InstanceWalletWithInstance[];
 }
 
-interface AllocationForm {
-  org_wallet_id: string;
-  instance_wallet_id: string;
-  amount: number;
-}
-
 export const AllocationModal = ({ 
   isOpen, 
   onClose, 
@@ -58,63 +53,48 @@ export const AllocationModal = ({
 }: AllocationModalProps) => {
   const { toast } = useToast();
   
-  const form = useForm<AllocationForm>({
+  const form = useForm<CreateAllocationForm>({
     defaultValues: {
       org_wallet_id: '',
       instance_wallet_id: '',
-      amount: 0
+      amount_origin: 0,
+      fx_rate: 1.0,
+      amount_destination: 0
+    }
+  });
+
+  const watchedValues = form.watch(['org_wallet_id', 'instance_wallet_id', 'amount_origin', 'fx_rate']);
+
+  // Obtener FX rates de la organización
+  const { data: fxRates } = useQuery({
+    queryKey: ['org-fx-rates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('org_fx_rates')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (error) throw error;
+      return data as OrgFxRate[];
     }
   });
 
   const allocationMutation = useMutation({
-    mutationFn: async (data: AllocationForm) => {
-      // Verificar balances
-      const orgWallet = orgWallets.find(w => w.id === data.org_wallet_id);
-      if (!orgWallet || Number(orgWallet.balance_available) < data.amount) {
-        throw new Error('Fondos insuficientes en el wallet organizacional');
-      }
+    mutationFn: async (data: CreateAllocationForm) => {
+      const { data: result, error } = await supabase.rpc('create_allocation', {
+        p_org_wallet_id: data.org_wallet_id,
+        p_instance_wallet_id: data.instance_wallet_id,
+        p_amount_origin: data.amount_origin,
+        p_fx_rate: data.fx_rate
+      });
 
-      // Crear la asignación en la tabla allocations
-      const { error: allocationError } = await supabase
-        .from('allocations')
-        .insert({
-          org_wallet_id: data.org_wallet_id,
-          instance_wallet_id: data.instance_wallet_id,
-          amount: data.amount,
-          type: 'allocation'
-        });
-
-      if (allocationError) throw allocationError;
-
-      // Actualizar balance del wallet organizacional
-      const { error: orgUpdateError } = await supabase
-        .from('org_wallets')
-        .update({
-          balance_available: Number(orgWallet.balance_available) - data.amount
-        })
-        .eq('id', data.org_wallet_id);
-
-      if (orgUpdateError) throw orgUpdateError;
-
-      // Actualizar balance del wallet de instancia
-      const instanceWallet = instanceWallets.find(w => w.id === data.instance_wallet_id);
-      if (instanceWallet) {
-        const { error: instanceUpdateError } = await supabase
-          .from('instance_wallets')
-          .update({
-            balance_available: Number(instanceWallet.balance_available) + data.amount
-          })
-          .eq('id', data.instance_wallet_id);
-
-        if (instanceUpdateError) throw instanceUpdateError;
-      }
-
-      return true;
+      if (error) throw error;
+      return result;
     },
     onSuccess: () => {
       toast({
         title: 'Fondos asignados',
-        description: 'Los fondos se han asignado correctamente a la instancia',
+        description: 'Los fondos se han asignado correctamente con conversión FX',
       });
       form.reset();
       onSuccess();
@@ -128,25 +108,60 @@ export const AllocationModal = ({
     }
   });
 
-  const onSubmit = (data: AllocationForm) => {
-    allocationMutation.mutate(data);
-  };
-
   const selectedOrgWallet = orgWallets.find(w => w.id === form.watch('org_wallet_id'));
   const selectedInstanceWallet = instanceWallets.find(w => w.id === form.watch('instance_wallet_id'));
 
-  // Filtrar wallets de instancias que coincidan con la moneda del wallet organizacional
-  const compatibleInstanceWallets = instanceWallets.filter(iw => 
-    selectedOrgWallet ? iw.currency === selectedOrgWallet.currency : true
-  );
+  // Calcular FX rate predeterminado
+  useEffect(() => {
+    if (selectedOrgWallet && selectedInstanceWallet) {
+      const fromCurrency = selectedOrgWallet.currency;
+      const toCurrency = selectedInstanceWallet.currency;
+      
+      if (fromCurrency === toCurrency) {
+        form.setValue('fx_rate', 1.0);
+      } else {
+        // Buscar rate configurado
+        const configuredRate = fxRates?.find(rate => 
+          rate.from_currency === fromCurrency && 
+          rate.to_currency === toCurrency
+        );
+        
+        if (configuredRate) {
+          form.setValue('fx_rate', Number(configuredRate.rate));
+        }
+      }
+    }
+  }, [selectedOrgWallet, selectedInstanceWallet, fxRates, form]);
+
+  // Calcular monto destino en tiempo real
+  useEffect(() => {
+    const amountOrigin = form.watch('amount_origin');
+    const fxRate = form.watch('fx_rate');
+    
+    if (amountOrigin && fxRate) {
+      const amountDestination = amountOrigin * fxRate;
+      form.setValue('amount_destination', amountDestination);
+    }
+  }, [watchedValues, form]);
+
+  const onSubmit = (data: CreateAllocationForm) => {
+    allocationMutation.mutate(data);
+  };
+
+  const getCurrencyPair = () => {
+    if (selectedOrgWallet && selectedInstanceWallet) {
+      return `${selectedOrgWallet.currency} → ${selectedInstanceWallet.currency}`;
+    }
+    return '';
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Asignar Fondos</DialogTitle>
+          <DialogTitle>Asignar Fondos con FX</DialogTitle>
           <DialogDescription>
-            Transfiere fondos de un wallet organizacional a una instancia
+            Transfiere fondos entre wallets con conversión de moneda automática
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +210,7 @@ export const AllocationModal = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {compatibleInstanceWallets.map((wallet) => (
+                      {instanceWallets.map((wallet) => (
                         <SelectItem key={wallet.id} value={wallet.id}>
                           {wallet.instance.legal_name} ({wallet.currency}) - Balance: {new Intl.NumberFormat('es-MX', {
                             style: 'currency',
@@ -212,7 +227,7 @@ export const AllocationModal = ({
 
             <FormField
               control={form.control}
-              name="amount"
+              name="amount_origin"
               rules={{ 
                 required: 'El monto es requerido',
                 min: { value: 0.01, message: 'El monto debe ser mayor a 0' },
@@ -224,7 +239,7 @@ export const AllocationModal = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Monto {selectedInstanceWallet && `(${selectedInstanceWallet.currency})`}
+                    Monto origen {selectedOrgWallet && `(${selectedOrgWallet.currency})`}
                   </FormLabel>
                   <FormControl>
                     <AmountInput
@@ -246,6 +261,52 @@ export const AllocationModal = ({
                 </FormItem>
               )}
             />
+
+            {selectedOrgWallet && selectedInstanceWallet && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="fx_rate"
+                  rules={{ 
+                    required: 'El tipo de cambio es requerido',
+                    min: { value: 0.000001, message: 'El tipo de cambio debe ser mayor a 0' }
+                  }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Tipo de cambio ({getCurrencyPair()})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.000001"
+                          placeholder="1.000000"
+                          value={field.value}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 1)}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-gray-600">
+                        1 {selectedOrgWallet.currency} = {field.value} {selectedInstanceWallet.currency}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <FormLabel>Monto destino calculado</FormLabel>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {new Intl.NumberFormat('es-MX', {
+                      style: 'currency',
+                      currency: selectedInstanceWallet.currency
+                    }).format(form.watch('amount_destination') || 0)}
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {form.watch('amount_origin')} {selectedOrgWallet.currency} × {form.watch('fx_rate')} = {form.watch('amount_destination')} {selectedInstanceWallet.currency}
+                  </p>
+                </div>
+              </>
+            )}
 
             <DialogFooter>
               <Button

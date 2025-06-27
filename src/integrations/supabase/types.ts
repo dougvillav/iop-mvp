@@ -12,8 +12,13 @@ export type Database = {
       allocations: {
         Row: {
           amount: number
+          amount_destination: number
+          amount_origin: number
           created_at: string | null
           created_by: string | null
+          currency_destination: string | null
+          currency_origin: string | null
+          fx_rate: number | null
           id: string
           instance_wallet_id: string | null
           org_wallet_id: string | null
@@ -21,8 +26,13 @@ export type Database = {
         }
         Insert: {
           amount: number
+          amount_destination?: number
+          amount_origin?: number
           created_at?: string | null
           created_by?: string | null
+          currency_destination?: string | null
+          currency_origin?: string | null
+          fx_rate?: number | null
           id?: string
           instance_wallet_id?: string | null
           org_wallet_id?: string | null
@@ -30,8 +40,13 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_destination?: number
+          amount_origin?: number
           created_at?: string | null
           created_by?: string | null
+          currency_destination?: string | null
+          currency_origin?: string | null
+          fx_rate?: number | null
           id?: string
           instance_wallet_id?: string | null
           org_wallet_id?: string | null
@@ -197,13 +212,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "instance_payout_configs_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "reconciliation_data"
-            referencedColumns: ["instance_id"]
-          },
-          {
             foreignKeyName: "instance_payout_configs_payout_config_id_fkey"
             columns: ["payout_config_id"]
             isOneToOne: false
@@ -263,13 +271,6 @@ export type Database = {
             referencedRelation: "instances"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "instance_tariff_configs_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "reconciliation_data"
-            referencedColumns: ["instance_id"]
-          },
         ]
       }
       instance_wallets: {
@@ -307,13 +308,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "instances"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "instance_wallets_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "reconciliation_data"
-            referencedColumns: ["instance_id"]
           },
           {
             foreignKeyName: "instance_wallets_org_wallet_id_fkey"
@@ -364,6 +358,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "instances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_fx_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_currency: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          rate: number
+          to_currency: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_currency: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          rate: number
+          to_currency: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_currency?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          rate?: number
+          to_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_fx_rates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -531,13 +569,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "reconciliation_data"
-            referencedColumns: ["instance_id"]
-          },
-          {
             foreignKeyName: "transactions_instance_wallet_id_fkey"
             columns: ["instance_wallet_id"]
             isOneToOne: false
@@ -653,6 +684,15 @@ export type Database = {
       }
     }
     Functions: {
+      create_allocation: {
+        Args: {
+          p_org_wallet_id: string
+          p_instance_wallet_id: string
+          p_amount_origin: number
+          p_fx_rate?: number
+        }
+        Returns: string
+      }
       create_deposit: {
         Args: { p_org_wallet_id: string; p_amount: number; p_reference: string }
         Returns: string
