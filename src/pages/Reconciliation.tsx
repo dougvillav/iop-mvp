@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -136,10 +135,10 @@ const Reconciliation = () => {
         'Tipo de Transacción',
         'Rail',
         'Estado',
-        'Monto Bruto',
+        'Monto al Cardholder',
         'Comisión',
         'Impuesto',
-        'Monto Neto',
+        'Total Debitado',
         'Tipo de Cambio',
         'Referencia Externa'
       ];
@@ -469,10 +468,10 @@ const Reconciliation = () => {
                     <th className="text-left p-2">Tipo</th>
                     <th className="text-left p-2">Rail</th>
                     <th className="text-left p-2">Estado</th>
-                    <th className="text-right p-2">Monto Bruto</th>
+                    <th className="text-right p-2">Monto al Cardholder</th>
                     <th className="text-right p-2">Comisión</th>
                     <th className="text-right p-2">Imp.</th>
-                    <th className="text-right p-2">Neto</th>
+                    <th className="text-right p-2">Total Debitado</th>
                     <th className="text-right p-2">FX</th>
                   </tr>
                 </thead>

@@ -14,6 +14,7 @@ import Instances from "./pages/Instances";
 import Wallets from "./pages/Wallets";
 import FraudDashboard from "./pages/FraudDashboard";
 import Reconciliation from "./pages/Reconciliation";
+import Users from "./pages/Users";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/wallets" element={<Layout><Wallets /></Layout>} />
           <Route path="/fraud" element={<Layout><FraudDashboard /></Layout>} />
           <Route path="/reconciliation" element={<Layout><Reconciliation /></Layout>} />
+          <Route path="/users" element={<Layout><Users /></Layout>} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

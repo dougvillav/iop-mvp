@@ -84,16 +84,22 @@ export const TransactionCard = ({ transaction }: TransactionCardProps) => {
 
           <div className="text-right">
             <div className={`text-lg font-bold ${getTypeColor(transaction.type)}`}>
-              {transaction.type === 'pay_in' ? '+' : '-'}${transaction.amount_brutto.toLocaleString()}
+              {transaction.type === 'pay_in' ? '+' : ''}${transaction.amount_brutto.toLocaleString()}
             </div>
             
             <div className="text-sm text-gray-500">
-              Neto: ${transaction.amount_net.toLocaleString()}
+              Total a debitar: ${transaction.amount_net.toLocaleString()}
             </div>
             
             {transaction.commission > 0 && (
               <div className="text-xs text-gray-500">
                 Comisión: ${transaction.commission.toLocaleString()}
+              </div>
+            )}
+            
+            {transaction.tax > 0 && (
+              <div className="text-xs text-gray-500">
+                Impuesto: ${transaction.tax.toLocaleString()}
               </div>
             )}
           </div>

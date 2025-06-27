@@ -13,6 +13,7 @@ import {
   Shield,
   LogOut,
   Calculator,
+  UserCog,
 } from 'lucide-react';
 
 const navigation = [
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Anti-Fraude', href: '/fraud', icon: Shield },
   { name: 'Payouts', href: '/payouts', icon: ArrowLeftRight },
   { name: 'Conciliación', href: '/reconciliation', icon: Calculator },
+  { name: 'Usuarios', href: '/users', icon: UserCog },
 ];
 
 export const Sidebar = () => {
