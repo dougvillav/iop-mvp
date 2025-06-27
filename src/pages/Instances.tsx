@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -125,9 +126,8 @@ const Instances = () => {
       />
 
       <TariffConfigModal
-        isOpen={tariffModalOpen}
+        open={tariffModalOpen}
         onClose={() => setTariffModalOpen(false)}
-        onSuccess={handleSuccess}
         instance={selectedInstance}
       />
     </div>
