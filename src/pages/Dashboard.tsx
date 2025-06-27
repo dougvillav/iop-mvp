@@ -21,14 +21,21 @@ const Dashboard = () => {
         .from('instance_wallets')
         .select('balance_available');
 
-      // Obtener payouts del día
-      const today = new Date().toISOString().split('T')[0];
+      // Obtener payouts del día actual - usando zona horaria local
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+      
+      console.log('Filtering transactions from:', startOfDay.toISOString(), 'to:', endOfDay.toISOString());
+      
       const { data: todayPayouts } = await supabase
         .from('transactions')
         .select('id, amount_brutto')
         .eq('type', 'pay_out')
-        .gte('created_at', `${today}T00:00:00.000Z`)
-        .lte('created_at', `${today}T23:59:59.999Z`);
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
+
+      console.log('Today payouts found:', todayPayouts?.length || 0);
 
       // Obtener comisiones totales
       const { data: commissions } = await supabase
@@ -53,6 +60,13 @@ const Dashboard = () => {
       const totalCommissions = commissions?.reduce((sum, t) => 
         sum + Number(t.commission), 0) || 0;
       const pendingCount = pendingTransactions?.length || 0;
+
+      console.log('Dashboard KPIs:', {
+        totalBalance,
+        dailyPayouts,
+        totalCommissions,
+        pendingCount
+      });
 
       return {
         totalBalance,

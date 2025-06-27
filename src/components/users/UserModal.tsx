@@ -60,7 +60,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
           organization_id: null as string | null
         };
 
-        if (formData.role !== 'admin' && formData.instance_id) {
+        if (formData.role !== 'admin' && formData.instance_id && formData.instance_id !== 'unassigned') {
           // Si no es admin y tiene instancia, obtener la organización de la instancia
           const { data: instance } = await supabase
             .from('instances')
@@ -186,7 +186,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
                   <SelectValue placeholder="Seleccionar instancia" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin instancia específica</SelectItem>
+                  <SelectItem value="unassigned">Sin instancia específica</SelectItem>
                   {instances.map((instance) => (
                     <SelectItem key={instance.id} value={instance.id}>
                       {instance.legal_name}
