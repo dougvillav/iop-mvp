@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { UserPlus, Search, Mail, Building2, Shield, User } from 'lucide-react';
+import { UserPlus, Search, Mail, Building2, Shield, User, Edit } from 'lucide-react';
 import { UserModal } from '@/components/users/UserModal';
+import { EditUserModal } from '@/components/users/EditUserModal';
 import { useToast } from '@/hooks/use-toast';
 import type { UserProfile } from '@/lib/types';
 
@@ -19,6 +20,8 @@ interface InstanceForUsers {
 
 const Users = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
@@ -84,6 +87,21 @@ const Users = () => {
       title: 'Usuario creado',
       description: 'El usuario ha sido creado exitosamente',
     });
+  };
+
+  const handleUserUpdated = () => {
+    refetch();
+    setIsEditModalOpen(false);
+    setSelectedUser(null);
+    toast({
+      title: 'Usuario actualizado',
+      description: 'El usuario ha sido actualizado exitosamente',
+    });
+  };
+
+  const handleEditUser = (user: UserProfile) => {
+    setSelectedUser(user);
+    setIsEditModalOpen(true);
   };
 
   const getRoleBadgeVariant = (role: string) => {
@@ -194,9 +212,18 @@ const Users = () => {
                       </div>
                     </div>
                   </div>
-                  <Badge variant={getRoleBadgeVariant(user.role)}>
-                    {getRoleText(user.role)}
-                  </Badge>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant={getRoleBadgeVariant(user.role)}>
+                      {getRoleText(user.role)}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEditUser(user)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               
@@ -235,9 +262,19 @@ const Users = () => {
         onUserCreated={handleUserCreated}
         instances={instances || []}
       />
+
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedUser(null);
+        }}
+        onUserUpdated={handleUserUpdated}
+        user={selectedUser}
+        instances={instances || []}
+      />
     </div>
   );
 };
 
 export default Users;
-
