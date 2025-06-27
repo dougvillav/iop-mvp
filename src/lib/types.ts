@@ -42,10 +42,13 @@ export interface WalletWithLedger extends OrgWallet {
 export interface CreatePayoutForm {
   instance_id: string;
   cardholder_id: string;
-  amount: number;
+  amount_brutto: number; // Cambiado de 'amount' a 'amount_brutto' para claridad
   rail: 'visa_direct' | 'mastercard_send';
   commission?: number;
   tax?: number;
+  processing_fee?: number;
+  fx_rate?: number;
+  total_debit?: number; // Nuevo: total a debitar de la wallet
 }
 
 export interface CreateCardholderForm {

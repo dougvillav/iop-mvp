@@ -8,10 +8,13 @@ import type { Instance, Cardholder } from '@/lib/types';
 interface PayoutData {
   instance?: Instance;
   cardholder?: Cardholder;
-  amount?: number;
+  amount_brutto?: number; // Monto que recibirá el cardholder
   rail?: 'visa_direct' | 'mastercard_send';
   commission?: number;
   tax?: number;
+  processing_fee?: number;
+  fx_rate?: number;
+  total_debit?: number; // Total a debitar de la wallet
 }
 
 interface PayoutConfirmationProps {
@@ -20,8 +23,6 @@ interface PayoutConfirmationProps {
 }
 
 export const PayoutConfirmation = ({ data, isLoading }: PayoutConfirmationProps) => {
-  const netAmount = (data.amount || 0) - (data.commission || 0) - (data.tax || 0);
-
   const getRailDisplayName = (rail?: string) => {
     switch (rail) {
       case 'visa_direct':
@@ -58,6 +59,11 @@ export const PayoutConfirmation = ({ data, isLoading }: PayoutConfirmationProps)
               <Badge variant="secondary">
                 {data.instance?.settlement_currency}
               </Badge>
+              {data.fx_rate !== 1.0 && (
+                <p className="text-xs text-blue-600">
+                  FX Rate: {data.fx_rate?.toFixed(4)}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -106,27 +112,43 @@ export const PayoutConfirmation = ({ data, isLoading }: PayoutConfirmationProps)
 
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span>Monto bruto:</span>
-              <span className="font-medium">
-                ${(data.amount || 0).toFixed(2)}
+              <span>Monto que recibirá el cardholder:</span>
+              <span className="font-medium text-green-600">
+                ${(data.amount_brutto || 0).toFixed(2)}
               </span>
             </div>
             
+            <div className="text-sm text-gray-700 font-medium">Costos adicionales:</div>
+            
             <div className="flex justify-between text-sm text-gray-600">
               <span>Comisión:</span>
-              <span>-${(data.commission || 0).toFixed(2)}</span>
+              <span>${(data.commission || 0).toFixed(2)}</span>
             </div>
             
             <div className="flex justify-between text-sm text-gray-600">
               <span>Impuesto:</span>
-              <span>-${(data.tax || 0).toFixed(2)}</span>
+              <span>${(data.tax || 0).toFixed(2)}</span>
             </div>
+
+            {data.processing_fee && data.processing_fee > 0 && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Fee de procesamiento:</span>
+                <span>${data.processing_fee.toFixed(2)}</span>
+              </div>
+            )}
+
+            {data.fx_rate && data.fx_rate !== 1.0 && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Aplicación FX Rate ({data.fx_rate.toFixed(4)}):</span>
+                <span>×{data.fx_rate.toFixed(4)}</span>
+              </div>
+            )}
             
             <Separator />
             
             <div className="flex justify-between text-lg font-semibold">
-              <span>Monto neto:</span>
-              <span className="text-green-600">${netAmount.toFixed(2)}</span>
+              <span>Total a debitar de wallet:</span>
+              <span className="text-red-600">${(data.total_debit || 0).toFixed(2)}</span>
             </div>
           </div>
 

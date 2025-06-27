@@ -27,10 +27,13 @@ interface PayoutWizardProps {
 interface PayoutData {
   instance?: Instance;
   cardholder?: Cardholder;
-  amount?: number;
+  amount_brutto?: number; // Monto que recibirá el cardholder
   rail?: 'visa_direct' | 'mastercard_send';
   commission?: number;
   tax?: number;
+  processing_fee?: number;
+  fx_rate?: number;
+  total_debit?: number; // Total a debitar de la wallet
 }
 
 export const PayoutWizard = ({ isOpen, onClose, onSuccess }: PayoutWizardProps) => {
@@ -47,14 +50,14 @@ export const PayoutWizard = ({ isOpen, onClose, onSuccess }: PayoutWizardProps) 
 
   const createPayoutMutation = useMutation({
     mutationFn: async () => {
-      if (!payoutData.instance || !payoutData.cardholder || !payoutData.amount || !payoutData.rail) {
+      if (!payoutData.instance || !payoutData.cardholder || !payoutData.amount_brutto || !payoutData.rail) {
         throw new Error('Datos incompletos para crear el payout');
       }
 
       const { data, error } = await supabase.rpc('create_payout', {
         p_instance_id: payoutData.instance.id,
         p_cardholder_id: payoutData.cardholder.id,
-        p_amount: payoutData.amount,
+        p_amount_brutto: payoutData.amount_brutto,
         p_rail: payoutData.rail,
         p_commission: payoutData.commission || 0,
         p_tax: payoutData.tax || 0
@@ -190,7 +193,7 @@ export const PayoutWizard = ({ isOpen, onClose, onSuccess }: PayoutWizardProps) 
               createPayoutMutation.isPending ||
               (currentStep === 1 && !payoutData.instance) ||
               (currentStep === 2 && !payoutData.cardholder) ||
-              (currentStep === 3 && (!payoutData.amount || !payoutData.rail))
+              (currentStep === 3 && (!payoutData.amount_brutto || !payoutData.rail))
             }
             className="bg-blue-600 hover:bg-blue-700"
           >

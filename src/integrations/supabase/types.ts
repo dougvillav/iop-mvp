@@ -665,7 +665,7 @@ export type Database = {
         Args: {
           p_instance_id: string
           p_cardholder_id: string
-          p_amount: number
+          p_amount_brutto: number
           p_rail: string
           p_commission?: number
           p_tax?: number

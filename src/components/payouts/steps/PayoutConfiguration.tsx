@@ -11,10 +11,13 @@ import { useToast } from '@/hooks/use-toast';
 import type { Instance, InstanceTariffConfig } from '@/lib/types';
 
 interface PayoutData {
-  amount?: number;
+  amount_brutto?: number; // Monto que recibirá el cardholder
   rail?: 'visa_direct' | 'mastercard_send';
   commission?: number;
   tax?: number;
+  processing_fee?: number;
+  fx_rate?: number;
+  total_debit?: number; // Total a debitar de la wallet
 }
 
 interface PayoutConfigurationProps {
@@ -24,13 +27,14 @@ interface PayoutConfigurationProps {
 }
 
 export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigurationProps) => {
-  const [amount, setAmount] = useState(data.amount?.toString() || '');
+  const [amount, setAmount] = useState(data.amount_brutto?.toString() || '');
   const [rail, setRail] = useState(data.rail || 'visa_direct');
   const [tariffConfigs, setTariffConfigs] = useState<InstanceTariffConfig[]>([]);
   const [loadingTariffs, setLoadingTariffs] = useState(false);
   const { toast } = useToast();
 
-  const amountNum = parseFloat(amount) || 0;
+  const amountBrutto = parseFloat(amount) || 0;
+  const fxRate = instance.fx_rate || 1.0;
 
   // Get current tariff configuration
   const currentTariff = tariffConfigs.find(
@@ -39,10 +43,16 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
               config.is_active
   );
 
-  // Calculate commission and tax based on tariff config
+  // Calculate costs and total debit based on corrected logic
   const calculateCosts = () => {
-    if (!currentTariff || amountNum === 0) {
-      return { commission: 0, tax: 0, processingFee: 0, netAmount: amountNum };
+    if (!currentTariff || amountBrutto === 0) {
+      return { 
+        commission: 0, 
+        tax: 0, 
+        processingFee: 0, 
+        totalBeforeFx: amountBrutto,
+        totalDebit: amountBrutto * fxRate 
+      };
     }
 
     const commissionPercentage = Number(currentTariff.commission_percentage) || 0;
@@ -50,14 +60,21 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
     const taxPercentage = Number(currentTariff.tax_percentage) || 0;
     const processingFee = Number(currentTariff.processing_fee) || 0;
 
-    const commission = (amountNum * commissionPercentage) + commissionFixed;
+    // Calcular comisión sobre el monto bruto
+    const commission = (amountBrutto * commissionPercentage) + commissionFixed;
+    // Calcular impuesto sobre la comisión
     const tax = commission * taxPercentage;
-    const netAmount = amountNum - commission - tax - processingFee;
+    
+    // Total antes del FX rate = monto bruto + comisión + impuesto + processing fee
+    const totalBeforeFx = amountBrutto + commission + tax + processingFee;
+    
+    // Total a debitar de la wallet = total antes del FX * FX rate
+    const totalDebit = totalBeforeFx * fxRate;
 
-    return { commission, tax, processingFee, netAmount };
+    return { commission, tax, processingFee, totalBeforeFx, totalDebit };
   };
 
-  const { commission, tax, processingFee, netAmount } = calculateCosts();
+  const { commission, tax, processingFee, totalBeforeFx, totalDebit } = calculateCosts();
 
   const loadTariffConfigs = async () => {
     setLoadingTariffs(true);
@@ -88,12 +105,15 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
 
   useEffect(() => {
     onChange({
-      amount: amountNum,
+      amount_brutto: amountBrutto,
       rail,
       commission,
-      tax
+      tax,
+      processing_fee: processingFee,
+      fx_rate: fxRate,
+      total_debit: totalDebit
     });
-  }, [amount, rail, commission, tax, onChange]);
+  }, [amount, rail, commission, tax, processingFee, fxRate, totalDebit, onChange]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAmount(e.target.value);
@@ -128,7 +148,7 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div>
-            <Label htmlFor="amount">Monto del Payout</Label>
+            <Label htmlFor="amount">Monto que recibirá el cardholder</Label>
             <Input
               id="amount"
               type="number"
@@ -139,6 +159,11 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
             />
             <p className="text-xs text-gray-500 mt-1">
               Moneda: {instance.settlement_currency}
+              {fxRate !== 1.0 && (
+                <span className="ml-2 text-blue-600">
+                  FX Rate: {fxRate.toFixed(4)}
+                </span>
+              )}
             </p>
           </div>
 
@@ -207,41 +232,59 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
-              <span>Monto bruto:</span>
-              <span className="font-medium">
-                {amountNum ? `$${amountNum.toFixed(2)}` : '$0.00'}
+              <span>Monto a recibir (bruto):</span>
+              <span className="font-medium text-green-600">
+                {amountBrutto ? `$${amountBrutto.toFixed(2)}` : '$0.00'}
               </span>
             </div>
+            
+            <hr className="my-2" />
+            
+            <div className="text-sm text-gray-700 font-medium mb-2">Costos adicionales:</div>
             
             <div className="flex justify-between text-sm text-gray-600">
               <span>
                 Comisión {currentTariff ? `(${(Number(currentTariff.commission_percentage) * 100).toFixed(2)}% + $${Number(currentTariff.commission_fixed).toFixed(2)})` : ''}:
               </span>
-              <span>-${commission.toFixed(2)}</span>
+              <span>${commission.toFixed(2)}</span>
             </div>
             
             <div className="flex justify-between text-sm text-gray-600">
               <span>
                 Impuesto {currentTariff ? `(${(Number(currentTariff.tax_percentage) * 100).toFixed(2)}%)` : ''}:
               </span>
-              <span>-${tax.toFixed(2)}</span>
+              <span>${tax.toFixed(2)}</span>
             </div>
 
             {processingFee > 0 && (
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Fee de procesamiento:</span>
-                <span>-${processingFee.toFixed(2)}</span>
+                <span>${processingFee.toFixed(2)}</span>
               </div>
+            )}
+
+            {fxRate !== 1.0 && (
+              <>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Subtotal ({instance.settlement_currency}):</span>
+                  <span>${totalBeforeFx.toFixed(2)}</span>
+                </div>
+                
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>FX Rate ({fxRate.toFixed(4)}):</span>
+                  <span>×{fxRate.toFixed(4)}</span>
+                </div>
+              </>
             )}
             
             <hr />
             
             <div className="flex justify-between font-semibold">
-              <span>Monto neto:</span>
-              <span className="text-green-600">${netAmount.toFixed(2)}</span>
+              <span>Total a debitar de wallet:</span>
+              <span className="text-red-600">${totalDebit.toFixed(2)}</span>
             </div>
 
-            {amountNum > 10000 && (
+            {amountBrutto > 10000 && (
               <div className="flex items-start space-x-2 p-3 bg-amber-50 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                 <div className="text-sm">
