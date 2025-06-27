@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,12 +15,17 @@ import { Percent, DollarSign, CreditCard, Building2 } from 'lucide-react';
 import type { Instance, InstanceTariffConfig, TariffConfigForm } from '@/lib/types';
 
 interface TariffConfigModalProps {
-  instance: Instance;
+  instance: Instance | null;
   open: boolean;
   onClose: () => void;
 }
 
 export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModalProps) => {
+  // Early return if instance is null
+  if (!instance) {
+    return null;
+  }
+
   const [configs, setConfigs] = useState<InstanceTariffConfig[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
