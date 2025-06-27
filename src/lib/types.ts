@@ -78,19 +78,24 @@ export interface TariffConfigForm {
   is_active: boolean;
 }
 
-// Tipos para conciliación
-export interface ReconciliationData {
+// Tipos para conciliación - ahora basados en transacciones individuales
+export interface ReconciliationTransaction {
+  id: string;
+  created_at: string;
+  amount_brutto: number;
+  amount_net: number;
+  commission: number;
+  tax: number;
+  status: TransactionStatus;
+  rail: string;
+  type: TransactionType;
+  fx_rate: number;
   instance_id: string;
   instance_name: string;
   settlement_currency: string;
-  transaction_date: string;
-  completed_transactions: number;
-  total_processed: number;
-  total_commission: number;
-  total_tax: number;
-  total_net: number;
-  rail: string;
-  transaction_type: TransactionType;
+  cardholder_id: string;
+  cardholder_name: string;
+  external_reference?: string;
 }
 
 export interface ReconciliationFilters {
@@ -99,6 +104,7 @@ export interface ReconciliationFilters {
   date_to?: string;
   transaction_type?: TransactionType;
   rail?: string;
+  status?: TransactionStatus;
 }
 
 // Tipos para dashboard

@@ -38,6 +38,7 @@ const instanceSchema = z.object({
   registration_id: z.string().optional(),
   country_iso: z.string().min(2, 'País es requerido'),
   settlement_currency: z.string().min(3, 'Moneda es requerida'),
+  fx_rate: z.number().min(1, 'El tipo de cambio debe ser mínimo 1.0'),
 });
 
 type InstanceFormData = z.infer<typeof instanceSchema>;
@@ -65,7 +66,10 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
       registration_id: instance.registration_id || '',
       country_iso: instance.country_iso,
       settlement_currency: instance.settlement_currency,
-    } : {},
+      fx_rate: instance.fx_rate || 1.0,
+    } : {
+      fx_rate: 1.0,
+    },
   });
 
   const selectedCountry = watch('country_iso');
@@ -88,11 +92,10 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
           description: 'La instancia se actualizó correctamente',
         });
       } else {
-        // Create new instance - corregido para incluir organization_id y tipos correctos
+        // Create new instance
         const { data: userData } = await supabase.auth.getUser();
         if (!userData.user) throw new Error('Usuario no autenticado');
 
-        // Obtener el organization_id del perfil del usuario
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('organization_id')
@@ -102,12 +105,12 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
         if (profileError) throw profileError;
         if (!userProfile?.organization_id) throw new Error('Usuario sin organización asignada');
 
-        // Preparar datos para inserción con tipos correctos
         const insertData = {
           legal_name: data.legal_name,
           registration_id: data.registration_id || null,
           country_iso: data.country_iso,
           settlement_currency: data.settlement_currency,
+          fx_rate: data.fx_rate,
           organization_id: userProfile.organization_id,
         };
 
@@ -209,6 +212,24 @@ export const InstanceModal: React.FC<InstanceModalProps> = ({
             </Select>
             {errors.settlement_currency && (
               <p className="text-sm text-red-600">{errors.settlement_currency.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="fx_rate">Tipo de Cambio (FX)</Label>
+            <Input
+              id="fx_rate"
+              type="number"
+              step="0.0001"
+              min="1"
+              {...register('fx_rate', { valueAsNumber: true })}
+              placeholder="1.0000"
+            />
+            <p className="text-xs text-gray-500">
+              Tipo de cambio aplicado a las transacciones (mínimo 1.0)
+            </p>
+            {errors.fx_rate && (
+              <p className="text-sm text-red-600">{errors.fx_rate.message}</p>
             )}
           </div>
 

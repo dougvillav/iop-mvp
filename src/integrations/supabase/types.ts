@@ -328,6 +328,7 @@ export type Database = {
         Row: {
           country_iso: string
           created_at: string | null
+          fx_rate: number
           id: string
           legal_name: string
           organization_id: string | null
@@ -339,6 +340,7 @@ export type Database = {
         Insert: {
           country_iso: string
           created_at?: string | null
+          fx_rate?: number
           id?: string
           legal_name: string
           organization_id?: string | null
@@ -350,6 +352,7 @@ export type Database = {
         Update: {
           country_iso?: string
           created_at?: string | null
+          fx_rate?: number
           id?: string
           legal_name?: string
           organization_id?: string | null

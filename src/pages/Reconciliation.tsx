@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,15 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePickerWithRange } from '@/components/ui/date-picker';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileText, Filter, Calendar, Building2, DollarSign, TrendingUp, CreditCard, AlertTriangle } from 'lucide-react';
+import { Download, FileText, Filter, Calendar, Building2, DollarSign, TrendingUp, CreditCard, AlertTriangle, User, Hash } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formatters';
-import type { ReconciliationData, ReconciliationFilters, Instance } from '@/lib/types';
+import type { ReconciliationTransaction, ReconciliationFilters, Instance } from '@/lib/types';
 import { DateRange } from 'react-day-picker';
 
 const Reconciliation = () => {
-  const [data, setData] = useState<ReconciliationData[]>([]);
+  const [data, setData] = useState<ReconciliationTransaction[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -48,30 +49,58 @@ const Reconciliation = () => {
     setLoading(true);
     try {
       let query = supabase
-        .from('reconciliation_data')
-        .select('*')
-        .order('transaction_date', { ascending: false });
+        .from('transactions')
+        .select(`
+          *,
+          instances!inner(id, legal_name, settlement_currency, fx_rate),
+          cardholders!inner(id, full_name)
+        `)
+        .order('created_at', { ascending: false });
 
       if (filters.instance_id) {
         query = query.eq('instance_id', filters.instance_id);
       }
       if (filters.transaction_type) {
-        query = query.eq('transaction_type', filters.transaction_type);
+        query = query.eq('type', filters.transaction_type);
       }
       if (filters.rail) {
         query = query.eq('rail', filters.rail);
       }
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
       if (filters.date_from) {
-        query = query.gte('transaction_date', filters.date_from);
+        query = query.gte('created_at', `${filters.date_from}T00:00:00.000Z`);
       }
       if (filters.date_to) {
-        query = query.lte('transaction_date', filters.date_to);
+        query = query.lte('created_at', `${filters.date_to}T23:59:59.999Z`);
       }
 
-      const { data, error } = await query;
+      const { data: rawData, error } = await query;
 
       if (error) throw error;
-      setData(data || []);
+
+      // Transform data to match ReconciliationTransaction interface
+      const transformedData: ReconciliationTransaction[] = (rawData || []).map(transaction => ({
+        id: transaction.id,
+        created_at: transaction.created_at || '',
+        amount_brutto: Number(transaction.amount_brutto) || 0,
+        amount_net: Number(transaction.amount_net) || 0,
+        commission: Number(transaction.commission) || 0,
+        tax: Number(transaction.tax) || 0,
+        status: transaction.status || 'pending',
+        rail: transaction.rail || '',
+        type: transaction.type,
+        fx_rate: Number(transaction.fx_rate) || 1,
+        instance_id: transaction.instance_id || '',
+        instance_name: (transaction.instances as any)?.legal_name || 'N/A',
+        settlement_currency: (transaction.instances as any)?.settlement_currency || 'USD',
+        cardholder_id: transaction.cardholder_id || '',
+        cardholder_name: (transaction.cardholders as any)?.full_name || 'N/A',
+        external_reference: transaction.external_reference || undefined,
+      }));
+
+      setData(transformedData);
     } catch (error) {
       console.error('Error loading reconciliation data:', error);
       toast({
@@ -100,27 +129,37 @@ const Reconciliation = () => {
       const exportData = data.slice(0, 100);
       
       const csvHeaders = [
+        'ID Transacción',
         'Fecha',
         'Instancia',
+        'Tarjetahabiente',
         'Tipo de Transacción',
         'Rail',
-        'Transacciones Completadas',
-        'Total Procesado',
-        'Comisiones',
-        'Impuestos',
-        'Ingresos Netos'
+        'Estado',
+        'Monto Bruto',
+        'Comisión',
+        'Impuesto',
+        'Monto Neto',
+        'Tipo de Cambio',
+        'Referencia Externa'
       ];
 
       const csvRows = exportData.map(item => [
-        item.transaction_date ? new Date(item.transaction_date).toLocaleDateString('es-MX') : '-',
-        item.instance_name || '-',
-        item.transaction_type === 'pay_out' ? 'Payout' : 'Pay-in',
+        item.id,
+        item.created_at ? new Date(item.created_at).toLocaleDateString('es-MX') : '-',
+        item.instance_name,
+        item.cardholder_name,
+        item.type === 'pay_out' ? 'Payout' : 'Pay-in',
         item.rail || '-',
-        Number(item.completed_transactions || 0).toLocaleString(),
-        `${Number(item.total_processed || 0).toFixed(2)} ${item.settlement_currency}`,
-        `${Number(item.total_commission || 0).toFixed(2)} ${item.settlement_currency}`,
-        `${Number(item.total_tax || 0).toFixed(2)} ${item.settlement_currency}`,
-        `${Number(item.total_net || 0).toFixed(2)} ${item.settlement_currency}`
+        item.status === 'completed' ? 'Completada' : 
+        item.status === 'pending' ? 'Pendiente' : 
+        item.status === 'failed' ? 'Fallida' : 'Disputada',
+        `${item.amount_brutto.toFixed(2)} ${item.settlement_currency}`,
+        `${item.commission.toFixed(2)} ${item.settlement_currency}`,
+        `${item.tax.toFixed(2)} ${item.settlement_currency}`,
+        `${item.amount_net.toFixed(2)} ${item.settlement_currency}`,
+        item.fx_rate.toFixed(4),
+        item.external_reference || '-'
       ]);
 
       // Create CSV content
@@ -134,7 +173,7 @@ const Reconciliation = () => {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `reporte_conciliacion_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `transacciones_conciliacion_${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -142,7 +181,7 @@ const Reconciliation = () => {
       
       toast({
         title: 'Éxito',
-        description: `Reporte exportado correctamente (${exportData.length} registros)`,
+        description: `Reporte exportado correctamente (${exportData.length} transacciones)`,
       });
     } catch (error) {
       console.error('Error exporting data:', error);
@@ -168,16 +207,18 @@ const Reconciliation = () => {
   };
 
   const calculateKPIs = () => {
-    const totalProcessed = data.reduce((sum, item) => sum + (Number(item.total_processed) || 0), 0);
-    const totalCommissions = data.reduce((sum, item) => sum + (Number(item.total_commission) || 0), 0);
-    const totalTax = data.reduce((sum, item) => sum + (Number(item.total_tax) || 0), 0);
-    const totalTransactions = data.reduce((sum, item) => sum + (Number(item.completed_transactions) || 0), 0);
+    const totalProcessed = data.reduce((sum, item) => sum + item.amount_brutto, 0);
+    const totalCommissions = data.reduce((sum, item) => sum + item.commission, 0);
+    const totalTax = data.reduce((sum, item) => sum + item.tax, 0);
+    const totalTransactions = data.length;
+    const completedTransactions = data.filter(item => item.status === 'completed').length;
 
     return {
       totalProcessed,
       totalCommissions,
       totalTax,
       totalTransactions,
+      completedTransactions,
     };
   };
 
@@ -196,7 +237,7 @@ const Reconciliation = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Conciliación</h1>
-          <p className="text-gray-600">Monitoreo de ingresos y comisiones por transacciones procesadas</p>
+          <p className="text-gray-600">Monitoreo de transacciones individuales y comisiones</p>
         </div>
         <div className="flex items-center gap-2">
           {data.length > 100 && (
@@ -224,7 +265,7 @@ const Reconciliation = () => {
               {formatCurrency(kpis.totalProcessed, 'USD')}
             </div>
             <p className="text-xs text-muted-foreground">
-              {kpis.totalTransactions} transacciones
+              {kpis.completedTransactions} de {kpis.totalTransactions} completadas
             </p>
           </CardContent>
         </Card>
@@ -261,15 +302,15 @@ const Reconciliation = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ingresos Netos</CardTitle>
+            <CardTitle className="text-sm font-medium">Transacciones</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(kpis.totalCommissions + kpis.totalTax, 'USD')}
+              {kpis.totalTransactions}
             </div>
             <p className="text-xs text-muted-foreground">
-              Comisiones + Impuestos
+              {kpis.completedTransactions} completadas
             </p>
           </CardContent>
         </Card>
@@ -284,7 +325,7 @@ const Reconciliation = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="space-y-2">
               <Label>Rango de Fechas</Label>
               <DatePickerWithRange
@@ -357,6 +398,28 @@ const Reconciliation = () => {
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label>Estado</Label>
+              <Select
+                value={filters.status || ''}
+                onValueChange={(value) => setFilters(prev => ({ 
+                  ...prev, 
+                  status: value === 'all' ? undefined : (value as any)
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="completed">Completada</SelectItem>
+                  <SelectItem value="failed">Fallida</SelectItem>
+                  <SelectItem value="disputed">Disputada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-end">
               <Button 
                 onClick={loadReconciliationData}
@@ -370,14 +433,14 @@ const Reconciliation = () => {
         </CardContent>
       </Card>
 
-      {/* Tabla de Datos */}
+      {/* Tabla de Transacciones */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Datos de Conciliación</CardTitle>
+            <CardTitle>Transacciones de Conciliación</CardTitle>
             {data.length > 0 && (
               <div className="text-sm text-gray-500">
-                {data.length} registros encontrados
+                {data.length} transacciones encontradas
                 {data.length > 100 && (
                   <span className="text-amber-600 ml-2">
                     (CSV limitado a 100)
@@ -389,42 +452,59 @@ const Reconciliation = () => {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Cargando datos de conciliación...</div>
+            <div className="text-center py-8">Cargando transacciones...</div>
           ) : data.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No se encontraron datos para los filtros seleccionados
+              No se encontraron transacciones para los filtros seleccionados
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left p-2">ID</th>
                     <th className="text-left p-2">Fecha</th>
                     <th className="text-left p-2">Instancia</th>
+                    <th className="text-left p-2">Tarjetahabiente</th>
                     <th className="text-left p-2">Tipo</th>
                     <th className="text-left p-2">Rail</th>
-                    <th className="text-right p-2">Transacciones</th>
-                    <th className="text-right p-2">Total Procesado</th>
-                    <th className="text-right p-2">Comisiones</th>
-                    <th className="text-right p-2">Impuestos</th>
+                    <th className="text-left p-2">Estado</th>
+                    <th className="text-right p-2">Monto Bruto</th>
+                    <th className="text-right p-2">Comisión</th>
+                    <th className="text-right p-2">Imp.</th>
                     <th className="text-right p-2">Neto</th>
+                    <th className="text-right p-2">FX</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.map((item, index) => (
-                    <tr key={index} className="border-b hover:bg-gray-50">
+                    <tr key={item.id} className="border-b hover:bg-gray-50">
                       <td className="p-2">
-                        {item.transaction_date ? new Date(item.transaction_date).toLocaleDateString('es-MX') : '-'}
+                        <div className="flex items-center gap-2">
+                          <Hash className="h-3 w-3 text-gray-400" />
+                          <span className="text-xs font-mono">
+                            {item.id.substring(0, 8)}...
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        {item.created_at ? new Date(item.created_at).toLocaleDateString('es-MX') : '-'}
                       </td>
                       <td className="p-2">
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-gray-400" />
-                          {item.instance_name}
+                          <span className="text-sm">{item.instance_name}</span>
                         </div>
                       </td>
                       <td className="p-2">
-                        <Badge variant={item.transaction_type === 'pay_out' ? 'default' : 'secondary'}>
-                          {item.transaction_type === 'pay_out' ? 'Payout' : 'Pay-in'}
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{item.cardholder_name}</span>
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        <Badge variant={item.type === 'pay_out' ? 'default' : 'secondary'}>
+                          {item.type === 'pay_out' ? 'Payout' : 'Pay-in'}
                         </Badge>
                       </td>
                       <td className="p-2">
@@ -432,20 +512,33 @@ const Reconciliation = () => {
                           {item.rail || '-'}
                         </Badge>
                       </td>
-                      <td className="p-2 text-right">
-                        {Number(item.completed_transactions || 0).toLocaleString()}
+                      <td className="p-2">
+                        <Badge 
+                          variant={
+                            item.status === 'completed' ? 'default' : 
+                            item.status === 'pending' ? 'secondary' : 
+                            item.status === 'failed' ? 'destructive' : 'outline'
+                          }
+                        >
+                          {item.status === 'completed' ? 'Completada' : 
+                           item.status === 'pending' ? 'Pendiente' : 
+                           item.status === 'failed' ? 'Fallida' : 'Disputada'}
+                        </Badge>
                       </td>
                       <td className="p-2 text-right font-medium">
-                        {formatCurrency(Number(item.total_processed || 0), item.settlement_currency)}
+                        {formatCurrency(item.amount_brutto, item.settlement_currency)}
                       </td>
                       <td className="p-2 text-right text-green-600 font-medium">
-                        {formatCurrency(Number(item.total_commission || 0), item.settlement_currency)}
+                        {formatCurrency(item.commission, item.settlement_currency)}
                       </td>
                       <td className="p-2 text-right text-orange-600 font-medium">
-                        {formatCurrency(Number(item.total_tax || 0), item.settlement_currency)}
+                        {formatCurrency(item.tax, item.settlement_currency)}
                       </td>
                       <td className="p-2 text-right text-blue-600 font-medium">
-                        {formatCurrency(Number(item.total_net || 0), item.settlement_currency)}
+                        {formatCurrency(item.amount_net, item.settlement_currency)}
+                      </td>
+                      <td className="p-2 text-right text-gray-600">
+                        {item.fx_rate.toFixed(4)}
                       </td>
                     </tr>
                   ))}
