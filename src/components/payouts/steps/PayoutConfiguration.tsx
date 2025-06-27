@@ -25,12 +25,12 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
   const [amount, setAmount] = useState(data.amount?.toString() || '');
   const [rail, setRail] = useState(data.rail || 'visa_direct');
 
-  const commission = parseFloat(amount) * 0.025 || 0; // 2.5% commission
-  const tax = commission * 0.16 || 0; // 16% tax on commission
-  const netAmount = parseFloat(amount) - commission - tax || 0;
+  const amountNum = parseFloat(amount) || 0;
+  const commission = amountNum * 0.025; // 2.5% commission
+  const tax = commission * 0.16; // 16% tax on commission
+  const netAmount = amountNum - commission - tax;
 
   useEffect(() => {
-    const amountNum = parseFloat(amount) || 0;
     onChange({
       amount: amountNum,
       rail,
@@ -38,6 +38,10 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
       tax
     });
   }, [amount, rail, commission, tax, onChange]);
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAmount(e.target.value);
+  };
 
   const railOptions = [
     {
@@ -74,7 +78,7 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
               type="number"
               placeholder="0.00"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={handleAmountChange}
               className="text-lg"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -118,7 +122,7 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
             <div className="flex justify-between">
               <span>Monto bruto:</span>
               <span className="font-medium">
-                {parseFloat(amount) ? `$${parseFloat(amount).toFixed(2)}` : '$0.00'}
+                {amountNum ? `$${amountNum.toFixed(2)}` : '$0.00'}
               </span>
             </div>
             
@@ -139,7 +143,7 @@ export const PayoutConfiguration = ({ instance, data, onChange }: PayoutConfigur
               <span className="text-green-600">${netAmount.toFixed(2)}</span>
             </div>
 
-            {parseFloat(amount) > 10000 && (
+            {amountNum > 10000 && (
               <div className="flex items-start space-x-2 p-3 bg-amber-50 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                 <div className="text-sm">

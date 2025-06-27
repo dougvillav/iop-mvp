@@ -48,6 +48,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   wallets,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [amountValue, setAmountValue] = useState('');
   const { toast } = useToast();
 
   const {
@@ -63,6 +64,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
   const selectedWalletId = watch('org_wallet_id');
   const selectedWallet = wallets.find(w => w.id === selectedWalletId);
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAmountValue(value);
+    setValue('amount', value === '' ? 0 : Number(value));
+  };
 
   const onSubmit = async (data: DepositFormData) => {
     setIsLoading(true);
@@ -83,6 +90,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       onSuccess();
       onClose();
       reset();
+      setAmountValue('');
     } catch (error) {
       toast({
         title: 'Error al crear depósito',
@@ -94,8 +102,14 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    onClose();
+    reset();
+    setAmountValue('');
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Nuevo Depósito</DialogTitle>
@@ -132,7 +146,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               id="amount"
               type="number"
               step="0.01"
-              {...register('amount', { valueAsNumber: true })}
+              value={amountValue}
+              onChange={handleAmountChange}
               placeholder="0.00"
             />
             {errors.amount && (
@@ -156,7 +171,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isLoading}
             >
               Cancelar

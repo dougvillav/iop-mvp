@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,14 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
     processing_fee: 0,
     currency: instance.settlement_currency,
     is_active: true,
+  });
+
+  // Separate state for form display values (strings)
+  const [formDisplayValues, setFormDisplayValues] = useState({
+    commission_percentage: '',
+    commission_fixed: '',
+    tax_percentage: '',
+    processing_fee: '',
   });
 
   const loadConfigs = async () => {
@@ -109,6 +118,26 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
       currency: instance.settlement_currency,
       is_active: true,
     });
+    setFormDisplayValues({
+      commission_percentage: '',
+      commission_fixed: '',
+      tax_percentage: '',
+      processing_fee: '',
+    });
+  };
+
+  const handleNumericChange = (field: keyof typeof formDisplayValues, value: string) => {
+    // Update display value
+    setFormDisplayValues(prev => ({ ...prev, [field]: value }));
+    
+    // Update actual numeric value
+    const numericValue = value === '' ? 0 : Number(value);
+    if (field === 'commission_percentage' || field === 'tax_percentage') {
+      // Convert percentage to decimal
+      setFormData(prev => ({ ...prev, [field]: numericValue / 100 }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: numericValue }));
+    }
   };
 
   const toggleConfigStatus = async (configId: string, isActive: boolean) => {
@@ -273,11 +302,8 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
                       step="0.01"
                       min="0"
                       max="100"
-                      value={formData.commission_percentage}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        commission_percentage: Number(e.target.value) / 100 
-                      }))}
+                      value={formDisplayValues.commission_percentage}
+                      onChange={(e) => handleNumericChange('commission_percentage', e.target.value)}
                       placeholder="Ej: 2.5 para 2.5%"
                     />
                   </div>
@@ -289,11 +315,8 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.commission_fixed}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        commission_fixed: Number(e.target.value) 
-                      }))}
+                      value={formDisplayValues.commission_fixed}
+                      onChange={(e) => handleNumericChange('commission_fixed', e.target.value)}
                       placeholder="0.00"
                     />
                   </div>
@@ -308,11 +331,8 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
                       step="0.01"
                       min="0"
                       max="100"
-                      value={formData.tax_percentage}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        tax_percentage: Number(e.target.value) / 100 
-                      }))}
+                      value={formDisplayValues.tax_percentage}
+                      onChange={(e) => handleNumericChange('tax_percentage', e.target.value)}
                       placeholder="Ej: 16 para 16%"
                     />
                   </div>
@@ -324,11 +344,8 @@ export const TariffConfigModal = ({ instance, open, onClose }: TariffConfigModal
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.processing_fee}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        processing_fee: Number(e.target.value) 
-                      }))}
+                      value={formDisplayValues.processing_fee}
+                      onChange={(e) => handleNumericChange('processing_fee', e.target.value)}
                       placeholder="0.00"
                     />
                   </div>
