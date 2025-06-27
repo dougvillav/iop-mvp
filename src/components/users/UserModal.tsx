@@ -7,13 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { Instance } from '@/lib/types';
+
+interface InstanceForUsers {
+  id: string;
+  legal_name: string;
+}
 
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUserCreated: () => void;
-  instances: Instance[];
+  instances: InstanceForUsers[];
 }
 
 export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserModalProps) => {

@@ -9,7 +9,13 @@ import { Input } from '@/components/ui/input';
 import { UserPlus, Search, Mail, Building2, Shield, User } from 'lucide-react';
 import { UserModal } from '@/components/users/UserModal';
 import { useToast } from '@/hooks/use-toast';
-import type { UserProfile, Instance } from '@/lib/types';
+import type { UserProfile } from '@/lib/types';
+
+// Simple interface for instances in user context
+interface InstanceForUsers {
+  id: string;
+  legal_name: string;
+}
 
 const Users = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,7 +53,7 @@ const Users = () => {
         .order('legal_name');
       
       if (error) throw error;
-      return data as Pick<Instance, 'id' | 'legal_name'>[];
+      return data as InstanceForUsers[];
     }
   });
 
