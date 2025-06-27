@@ -44,6 +44,22 @@ interface AllocationModalProps {
   instanceWallets: InstanceWalletWithInstance[];
 }
 
+// Enhanced validation functions for security
+const validateAmount = (amount: number, maxAmount?: number): string | undefined => {
+  if (amount <= 0) return 'Amount must be greater than 0';
+  if (amount > 10000000) return 'Amount cannot exceed 10,000,000';
+  if (maxAmount && amount > maxAmount) return `Amount cannot exceed available balance of ${maxAmount}`;
+  if (isNaN(amount) || !isFinite(amount)) return 'Amount must be a valid number';
+  return undefined;
+};
+
+const validateFxRate = (rate: number): string | undefined => {
+  if (rate <= 0) return 'Exchange rate must be greater than 0';
+  if (rate > 1000000) return 'Exchange rate cannot exceed 1,000,000';
+  if (isNaN(rate) || !isFinite(rate)) return 'Exchange rate must be a valid number';
+  return undefined;
+};
+
 export const AllocationModal = ({ 
   isOpen, 
   onClose, 
@@ -65,7 +81,6 @@ export const AllocationModal = ({
 
   const watchedValues = form.watch(['org_wallet_id', 'instance_wallet_id', 'amount_origin', 'fx_rate']);
 
-  // Obtener FX rates de la organización
   const { data: fxRates } = useQuery({
     queryKey: ['org-fx-rates'],
     queryFn: async () => {
@@ -81,11 +96,35 @@ export const AllocationModal = ({
 
   const allocationMutation = useMutation({
     mutationFn: async (data: CreateAllocationForm) => {
+      // Enhanced client-side validation
+      const selectedOrgWallet = orgWallets.find(w => w.id === data.org_wallet_id);
+      if (!selectedOrgWallet) {
+        throw new Error('Please select a valid organization wallet');
+      }
+
+      const selectedInstanceWallet = instanceWallets.find(w => w.id === data.instance_wallet_id);
+      if (!selectedInstanceWallet) {
+        throw new Error('Please select a valid instance wallet');
+      }
+
+      const amountError = validateAmount(data.amount_origin, Number(selectedOrgWallet.balance_available));
+      if (amountError) throw new Error(amountError);
+
+      const fxRateError = validateFxRate(data.fx_rate);
+      if (fxRateError) throw new Error(fxRateError);
+
+      // Sanitize and round values for financial precision
+      const sanitizedData = {
+        ...data,
+        amount_origin: Number(parseFloat(data.amount_origin.toString()).toFixed(2)),
+        fx_rate: Number(parseFloat(data.fx_rate.toString()).toFixed(6))
+      };
+
       const { data: result, error } = await supabase.rpc('create_allocation', {
-        p_org_wallet_id: data.org_wallet_id,
-        p_instance_wallet_id: data.instance_wallet_id,
-        p_amount_origin: data.amount_origin,
-        p_fx_rate: data.fx_rate
+        p_org_wallet_id: sanitizedData.org_wallet_id,
+        p_instance_wallet_id: sanitizedData.instance_wallet_id,
+        p_amount_origin: sanitizedData.amount_origin,
+        p_fx_rate: sanitizedData.fx_rate
       });
 
       if (error) throw error;
@@ -93,16 +132,17 @@ export const AllocationModal = ({
     },
     onSuccess: () => {
       toast({
-        title: 'Fondos asignados',
-        description: 'Los fondos se han asignado correctamente con conversión FX',
+        title: 'Funds allocated successfully',
+        description: 'Funds have been allocated with FX conversion applied',
       });
       form.reset();
       onSuccess();
     },
     onError: (error) => {
+      console.error('Allocation error:', error);
       toast({
-        title: 'Error al asignar fondos',
-        description: error.message,
+        title: 'Error allocating funds',
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
     }
@@ -111,7 +151,7 @@ export const AllocationModal = ({
   const selectedOrgWallet = orgWallets.find(w => w.id === form.watch('org_wallet_id'));
   const selectedInstanceWallet = instanceWallets.find(w => w.id === form.watch('instance_wallet_id'));
 
-  // Calcular FX rate predeterminado
+  // Calculate FX rate with proper validation
   useEffect(() => {
     if (selectedOrgWallet && selectedInstanceWallet) {
       const fromCurrency = selectedOrgWallet.currency;
@@ -120,27 +160,32 @@ export const AllocationModal = ({
       if (fromCurrency === toCurrency) {
         form.setValue('fx_rate', 1.0);
       } else {
-        // Buscar rate configurado
         const configuredRate = fxRates?.find(rate => 
           rate.from_currency === fromCurrency && 
-          rate.to_currency === toCurrency
+          rate.to_currency === toCurrency &&
+          rate.is_active
         );
         
         if (configuredRate) {
           form.setValue('fx_rate', Number(configuredRate.rate));
+        } else {
+          // Reset to 1.0 if no configured rate found
+          form.setValue('fx_rate', 1.0);
         }
       }
     }
   }, [selectedOrgWallet, selectedInstanceWallet, fxRates, form]);
 
-  // Calcular monto destino en tiempo real
+  // Calculate destination amount with proper rounding
   useEffect(() => {
     const amountOrigin = form.watch('amount_origin');
     const fxRate = form.watch('fx_rate');
     
-    if (amountOrigin && fxRate) {
-      const amountDestination = amountOrigin * fxRate;
+    if (amountOrigin && fxRate && amountOrigin > 0 && fxRate > 0) {
+      const amountDestination = Math.round(amountOrigin * fxRate * 100) / 100; // Round to 2 decimal places
       form.setValue('amount_destination', amountDestination);
+    } else {
+      form.setValue('amount_destination', 0);
     }
   }, [watchedValues, form]);
 
@@ -155,13 +200,18 @@ export const AllocationModal = ({
     return '';
   };
 
+  const handleClose = () => {
+    form.reset();
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Asignar Fondos con FX</DialogTitle>
+          <DialogTitle>Allocate Funds with FX</DialogTitle>
           <DialogDescription>
-            Transfiere fondos entre wallets con conversión de moneda automática
+            Transfer funds between wallets with automatic currency conversion
           </DialogDescription>
         </DialogHeader>
 
@@ -170,20 +220,20 @@ export const AllocationModal = ({
             <FormField
               control={form.control}
               name="org_wallet_id"
-              rules={{ required: 'Selecciona un wallet organizacional' }}
+              rules={{ required: 'Please select an organization wallet' }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Wallet origen (Organizacional)</FormLabel>
-                  <Select onValueChange={field.onChange}>
+                  <FormLabel>Source Wallet (Organization)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un wallet" />
+                        <SelectValue placeholder="Select a wallet" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {orgWallets.map((wallet) => (
                         <SelectItem key={wallet.id} value={wallet.id}>
-                          {wallet.currency} - {new Intl.NumberFormat('es-MX', {
+                          {wallet.currency} - {new Intl.NumberFormat('en-US', {
                             style: 'currency',
                             currency: wallet.currency
                           }).format(Number(wallet.balance_available))}
@@ -199,20 +249,20 @@ export const AllocationModal = ({
             <FormField
               control={form.control}
               name="instance_wallet_id"
-              rules={{ required: 'Selecciona un wallet de instancia' }}
+              rules={{ required: 'Please select an instance wallet' }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Wallet destino (Instancia)</FormLabel>
-                  <Select onValueChange={field.onChange}>
+                  <FormLabel>Destination Wallet (Instance)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona una instancia" />
+                        <SelectValue placeholder="Select an instance" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {instanceWallets.map((wallet) => (
                         <SelectItem key={wallet.id} value={wallet.id}>
-                          {wallet.instance.legal_name} ({wallet.currency}) - Balance: {new Intl.NumberFormat('es-MX', {
+                          {wallet.instance.legal_name} ({wallet.currency}) - Balance: {new Intl.NumberFormat('en-US', {
                             style: 'currency',
                             currency: wallet.currency
                           }).format(Number(wallet.balance_available))}
@@ -229,29 +279,28 @@ export const AllocationModal = ({
               control={form.control}
               name="amount_origin"
               rules={{ 
-                required: 'El monto es requerido',
-                min: { value: 0.01, message: 'El monto debe ser mayor a 0' },
-                max: { 
-                  value: selectedOrgWallet ? Number(selectedOrgWallet.balance_available) : 0, 
-                  message: 'El monto no puede exceder el balance disponible' 
-                }
+                required: 'Amount is required',
+                validate: (value) => validateAmount(value, selectedOrgWallet ? Number(selectedOrgWallet.balance_available) : undefined)
               }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Monto origen {selectedOrgWallet && `(${selectedOrgWallet.currency})`}
+                    Source Amount {selectedOrgWallet && `(${selectedOrgWallet.currency})`}
                   </FormLabel>
                   <FormControl>
                     <AmountInput
                       placeholder="0.00"
                       value={field.value ? field.value.toString() : ''}
-                      onChange={(value) => field.onChange(parseFloat(value) || 0)}
+                      onChange={(value) => {
+                        const numValue = parseFloat(value) || 0;
+                        field.onChange(numValue);
+                      }}
                       max={selectedOrgWallet ? Number(selectedOrgWallet.balance_available) : undefined}
                     />
                   </FormControl>
                   {selectedOrgWallet && (
                     <p className="text-xs text-gray-600">
-                      Disponible: {new Intl.NumberFormat('es-MX', {
+                      Available: {new Intl.NumberFormat('en-US', {
                         style: 'currency',
                         currency: selectedOrgWallet.currency
                       }).format(Number(selectedOrgWallet.balance_available))}
@@ -268,25 +317,30 @@ export const AllocationModal = ({
                   control={form.control}
                   name="fx_rate"
                   rules={{ 
-                    required: 'El tipo de cambio es requerido',
-                    min: { value: 0.000001, message: 'El tipo de cambio debe ser mayor a 0' }
+                    required: 'Exchange rate is required',
+                    validate: validateFxRate
                   }}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Tipo de cambio ({getCurrencyPair()})
+                        Exchange Rate ({getCurrencyPair()})
                       </FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           step="0.000001"
+                          min="0.000001"
+                          max="1000000"
                           placeholder="1.000000"
                           value={field.value}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            field.onChange(isNaN(value) ? 1 : value);
+                          }}
                         />
                       </FormControl>
                       <p className="text-xs text-gray-600">
-                        1 {selectedOrgWallet.currency} = {field.value} {selectedInstanceWallet.currency}
+                        1 {selectedOrgWallet.currency} = {Number(field.value).toFixed(6)} {selectedInstanceWallet.currency}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -294,15 +348,15 @@ export const AllocationModal = ({
                 />
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <FormLabel>Monto destino calculado</FormLabel>
+                  <FormLabel>Calculated Destination Amount</FormLabel>
                   <div className="text-lg font-semibold text-gray-900">
-                    {new Intl.NumberFormat('es-MX', {
+                    {new Intl.NumberFormat('en-US', {
                       style: 'currency',
                       currency: selectedInstanceWallet.currency
                     }).format(form.watch('amount_destination') || 0)}
                   </div>
                   <p className="text-xs text-gray-600">
-                    {form.watch('amount_origin')} {selectedOrgWallet.currency} × {form.watch('fx_rate')} = {form.watch('amount_destination')} {selectedInstanceWallet.currency}
+                    {form.watch('amount_origin')} {selectedOrgWallet.currency} × {Number(form.watch('fx_rate')).toFixed(6)} = {Number(form.watch('amount_destination')).toFixed(2)} {selectedInstanceWallet.currency}
                   </p>
                 </div>
               </>
@@ -312,17 +366,17 @@ export const AllocationModal = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={allocationMutation.isPending}
               >
-                Cancelar
+                Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={allocationMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {allocationMutation.isPending ? 'Asignando...' : 'Asignar Fondos'}
+                {allocationMutation.isPending ? 'Allocating...' : 'Allocate Funds'}
               </Button>
             </DialogFooter>
           </form>

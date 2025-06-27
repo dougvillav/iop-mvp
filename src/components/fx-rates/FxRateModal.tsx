@@ -42,6 +42,21 @@ const CURRENCIES = [
   'USD', 'EUR', 'GBP', 'JPY', 'MXN', 'CAD', 'AUD', 'CHF', 'CNY', 'BRL'
 ];
 
+// Enhanced validation functions for security
+const validateRate = (rate: number): string | undefined => {
+  if (rate < 0.000001) return 'Rate must be at least 0.000001';
+  if (rate > 1000000) return 'Rate cannot exceed 1,000,000';
+  if (isNaN(rate) || !isFinite(rate)) return 'Rate must be a valid number';
+  return undefined;
+};
+
+const validateCurrency = (currency: string): string | undefined => {
+  if (!currency || currency.length !== 3) return 'Currency must be 3 characters';
+  if (currency !== currency.toUpperCase()) return 'Currency must be uppercase';
+  if (!/^[A-Z]{3}$/.test(currency)) return 'Currency must contain only letters';
+  return undefined;
+};
+
 export const FxRateModal = ({ 
   isOpen, 
   onClose, 
@@ -61,28 +76,48 @@ export const FxRateModal = ({
 
   const saveMutation = useMutation({
     mutationFn: async (data: FxRateForm) => {
+      // Client-side validation before sending to server
+      const rateError = validateRate(data.rate);
+      if (rateError) throw new Error(rateError);
+
+      const fromCurrencyError = validateCurrency(data.from_currency);
+      if (fromCurrencyError) throw new Error(`From currency: ${fromCurrencyError}`);
+
+      const toCurrencyError = validateCurrency(data.to_currency);
+      if (toCurrencyError) throw new Error(`To currency: ${toCurrencyError}`);
+
+      if (data.from_currency === data.to_currency) {
+        throw new Error('From and to currencies must be different');
+      }
+
+      // Sanitize inputs
+      const sanitizedData = {
+        ...data,
+        from_currency: data.from_currency.toUpperCase().trim(),
+        to_currency: data.to_currency.toUpperCase().trim(),
+        rate: Number(parseFloat(data.rate.toString()).toFixed(6)) // Ensure proper precision
+      };
+
       if (editingRate) {
-        // Actualizar rate existente
         const { error } = await supabase
           .from('org_fx_rates')
           .update({
-            rate: data.rate,
-            is_active: data.is_active,
+            rate: sanitizedData.rate,
+            is_active: sanitizedData.is_active,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingRate.id);
         
         if (error) throw error;
       } else {
-        // Crear nuevo rate
         const { error } = await supabase
           .from('org_fx_rates')
           .insert({
-            from_currency: data.from_currency,
-            to_currency: data.to_currency,
-            rate: data.rate,
-            is_active: data.is_active,
-            organization_id: '00000000-0000-0000-0000-000000000001' // TODO: Obtener de contexto de usuario
+            from_currency: sanitizedData.from_currency,
+            to_currency: sanitizedData.to_currency,
+            rate: sanitizedData.rate,
+            is_active: sanitizedData.is_active,
+            organization_id: '00000000-0000-0000-0000-000000000001' // TODO: Get from user context
           });
         
         if (error) throw error;
@@ -90,45 +125,42 @@ export const FxRateModal = ({
     },
     onSuccess: () => {
       toast({
-        title: editingRate ? 'Rate actualizado' : 'Rate creado',
-        description: `El tipo de cambio se ha ${editingRate ? 'actualizado' : 'creado'} correctamente`,
+        title: editingRate ? 'Rate updated' : 'Rate created',
+        description: `Exchange rate has been ${editingRate ? 'updated' : 'created'} successfully`,
       });
       form.reset();
       onSuccess();
     },
     onError: (error) => {
+      console.error('FX Rate save error:', error);
       toast({
-        title: 'Error al guardar',
-        description: error.message,
+        title: 'Error saving rate',
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
     }
   });
 
   const onSubmit = (data: FxRateForm) => {
-    if (data.from_currency === data.to_currency) {
-      toast({
-        title: 'Error de validación',
-        description: 'Las monedas origen y destino deben ser diferentes',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
     saveMutation.mutate(data);
   };
 
+  const handleClose = () => {
+    form.reset();
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {editingRate ? 'Editar Tipo de Cambio' : 'Nuevo Tipo de Cambio'}
+            {editingRate ? 'Edit Exchange Rate' : 'New Exchange Rate'}
           </DialogTitle>
           <DialogDescription>
             {editingRate 
-              ? 'Actualiza la configuración del tipo de cambio'
-              : 'Configura un nuevo tipo de cambio para conversión entre monedas'
+              ? 'Update the exchange rate configuration'
+              : 'Configure a new exchange rate for currency conversion'
             }
           </DialogDescription>
         </DialogHeader>
@@ -138,10 +170,13 @@ export const FxRateModal = ({
             <FormField
               control={form.control}
               name="from_currency"
-              rules={{ required: 'Selecciona la moneda origen' }}
+              rules={{ 
+                required: 'From currency is required',
+                validate: validateCurrency
+              }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Moneda origen</FormLabel>
+                  <FormLabel>From Currency</FormLabel>
                   <Select 
                     onValueChange={field.onChange} 
                     value={field.value}
@@ -149,7 +184,7 @@ export const FxRateModal = ({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona moneda origen" />
+                        <SelectValue placeholder="Select source currency" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -168,10 +203,13 @@ export const FxRateModal = ({
             <FormField
               control={form.control}
               name="to_currency"
-              rules={{ required: 'Selecciona la moneda destino' }}
+              rules={{ 
+                required: 'To currency is required',
+                validate: validateCurrency
+              }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Moneda destino</FormLabel>
+                  <FormLabel>To Currency</FormLabel>
                   <Select 
                     onValueChange={field.onChange} 
                     value={field.value}
@@ -179,7 +217,7 @@ export const FxRateModal = ({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona moneda destino" />
+                        <SelectValue placeholder="Select target currency" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -199,24 +237,29 @@ export const FxRateModal = ({
               control={form.control}
               name="rate"
               rules={{ 
-                required: 'El rate es requerido',
-                min: { value: 0.000001, message: 'El rate debe ser mayor a 0' }
+                required: 'Exchange rate is required',
+                validate: validateRate
               }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipo de cambio</FormLabel>
+                  <FormLabel>Exchange Rate</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       step="0.000001"
+                      min="0.000001"
+                      max="1000000"
                       placeholder="1.000000"
                       value={field.value}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        field.onChange(isNaN(value) ? 0 : value);
+                      }}
                     />
                   </FormControl>
                   {form.watch('from_currency') && form.watch('to_currency') && (
                     <p className="text-xs text-gray-600">
-                      1 {form.watch('from_currency')} = {field.value} {form.watch('to_currency')}
+                      1 {form.watch('from_currency')} = {Number(field.value).toFixed(6)} {form.watch('to_currency')}
                     </p>
                   )}
                   <FormMessage />
@@ -230,9 +273,9 @@ export const FxRateModal = ({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                   <div className="space-y-0.5">
-                    <FormLabel>Activo</FormLabel>
+                    <FormLabel>Active</FormLabel>
                     <div className="text-sm text-gray-600">
-                      El tipo de cambio estará disponible para usar en asignaciones
+                      Exchange rate will be available for fund allocations
                     </div>
                   </div>
                   <FormControl>
@@ -249,10 +292,10 @@ export const FxRateModal = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={saveMutation.isPending}
               >
-                Cancelar
+                Cancel
               </Button>
               <Button
                 type="submit"
@@ -260,8 +303,8 @@ export const FxRateModal = ({
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {saveMutation.isPending 
-                  ? (editingRate ? 'Actualizando...' : 'Creando...') 
-                  : (editingRate ? 'Actualizar' : 'Crear')
+                  ? (editingRate ? 'Updating...' : 'Creating...') 
+                  : (editingRate ? 'Update' : 'Create')
                 }
               </Button>
             </DialogFooter>
