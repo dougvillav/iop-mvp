@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { InstanceCard } from '@/components/instances/InstanceCard';
 import { InstanceModal } from '@/components/instances/InstanceModal';
+import { TariffConfigModal } from '@/components/instances/TariffConfigModal';
 import type { Instance } from '@/lib/types';
 
 const Instances = () => {
   const [instanceModalOpen, setInstanceModalOpen] = useState(false);
+  const [tariffModalOpen, setTariffModalOpen] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
 
   const { data: instances, isLoading, refetch } = useQuery({
@@ -28,12 +29,18 @@ const Instances = () => {
   const handleSuccess = () => {
     refetch();
     setInstanceModalOpen(false);
+    setTariffModalOpen(false);
     setSelectedInstance(null);
   };
 
   const openInstanceModal = (instance?: Instance) => {
     setSelectedInstance(instance || null);
     setInstanceModalOpen(true);
+  };
+
+  const openTariffModal = (instance: Instance) => {
+    setSelectedInstance(instance);
+    setTariffModalOpen(true);
   };
 
   if (isLoading) {
@@ -104,6 +111,7 @@ const Instances = () => {
               key={instance.id}
               instance={instance}
               onEdit={() => openInstanceModal(instance)}
+              onConfigureTariffs={() => openTariffModal(instance)}
             />
           ))}
         </div>
@@ -112,6 +120,13 @@ const Instances = () => {
       <InstanceModal
         isOpen={instanceModalOpen}
         onClose={() => setInstanceModalOpen(false)}
+        onSuccess={handleSuccess}
+        instance={selectedInstance}
+      />
+
+      <TariffConfigModal
+        isOpen={tariffModalOpen}
+        onClose={() => setTariffModalOpen(false)}
         onSuccess={handleSuccess}
         instance={selectedInstance}
       />
