@@ -197,11 +197,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "instance_payout_configs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_data"
+            referencedColumns: ["instance_id"]
+          },
+          {
             foreignKeyName: "instance_payout_configs_payout_config_id_fkey"
             columns: ["payout_config_id"]
             isOneToOne: false
             referencedRelation: "payout_configs"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      instance_tariff_configs: {
+        Row: {
+          commission_fixed: number | null
+          commission_percentage: number | null
+          created_at: string | null
+          currency: string
+          id: string
+          instance_id: string
+          is_active: boolean | null
+          processing_fee: number | null
+          rail: string
+          tax_percentage: number | null
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          commission_fixed?: number | null
+          commission_percentage?: number | null
+          created_at?: string | null
+          currency: string
+          id?: string
+          instance_id: string
+          is_active?: boolean | null
+          processing_fee?: number | null
+          rail: string
+          tax_percentage?: number | null
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          commission_fixed?: number | null
+          commission_percentage?: number | null
+          created_at?: string | null
+          currency?: string
+          id?: string
+          instance_id?: string
+          is_active?: boolean | null
+          processing_fee?: number | null
+          rail?: string
+          tax_percentage?: number | null
+          transaction_type?: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instance_tariff_configs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instance_tariff_configs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_data"
+            referencedColumns: ["instance_id"]
           },
         ]
       }
@@ -240,6 +307,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "instances"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instance_wallets_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_data"
+            referencedColumns: ["instance_id"]
           },
           {
             foreignKeyName: "instance_wallets_org_wallet_id_fkey"
@@ -454,6 +528,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_data"
+            referencedColumns: ["instance_id"]
+          },
+          {
             foreignKeyName: "transactions_instance_wallet_id_fkey"
             columns: ["instance_wallet_id"]
             isOneToOne: false
@@ -549,7 +630,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      reconciliation_data: {
+        Row: {
+          completed_transactions: number | null
+          instance_id: string | null
+          instance_name: string | null
+          rail: string | null
+          settlement_currency: string | null
+          total_commission: number | null
+          total_net: number | null
+          total_processed: number | null
+          total_tax: number | null
+          transaction_date: string | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type"]
+            | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_deposit: {

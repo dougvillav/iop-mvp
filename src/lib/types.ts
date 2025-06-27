@@ -15,6 +15,7 @@ export type Dispute = Tables<'disputes'>;
 export type UserProfile = Tables<'user_profiles'>;
 export type PayoutConfig = Tables<'payout_configs'>;
 export type WalletLedger = Tables<'wallet_ledger'>;
+export type InstanceTariffConfig = Tables<'instance_tariff_configs'>;
 
 // Enums
 export type AppRole = Database['public']['Enums']['app_role'];
@@ -63,6 +64,41 @@ export interface CreateDepositForm {
   org_wallet_id: string;
   amount: number;
   reference: string;
+}
+
+// Tipos para configuración de tarifas
+export interface TariffConfigForm {
+  transaction_type: TransactionType;
+  rail: string;
+  commission_percentage: number;
+  commission_fixed: number;
+  tax_percentage: number;
+  processing_fee: number;
+  currency: string;
+  is_active: boolean;
+}
+
+// Tipos para conciliación
+export interface ReconciliationData {
+  instance_id: string;
+  instance_name: string;
+  settlement_currency: string;
+  transaction_date: string;
+  completed_transactions: number;
+  total_processed: number;
+  total_commission: number;
+  total_tax: number;
+  total_net: number;
+  rail: string;
+  transaction_type: TransactionType;
+}
+
+export interface ReconciliationFilters {
+  instance_id?: string;
+  date_from?: string;
+  date_to?: string;
+  transaction_type?: TransactionType;
+  rail?: string;
 }
 
 // Tipos para dashboard

@@ -2,15 +2,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Building2, MapPin, CreditCard, Edit } from 'lucide-react';
+import { Building2, MapPin, CreditCard, Edit, Settings } from 'lucide-react';
 import type { Instance } from '@/lib/types';
 
 interface InstanceCardProps {
   instance: Instance;
   onEdit: () => void;
+  onConfigureTariffs: () => void;
 }
 
-export const InstanceCard = ({ instance, onEdit }: InstanceCardProps) => {
+export const InstanceCard = ({ instance, onEdit, onConfigureTariffs }: InstanceCardProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -77,7 +78,7 @@ export const InstanceCard = ({ instance, onEdit }: InstanceCardProps) => {
           )}
         </div>
 
-        <div className="pt-2 border-t">
+        <div className="pt-2 border-t space-y-2">
           <Button
             onClick={onEdit}
             size="sm"
@@ -86,6 +87,14 @@ export const InstanceCard = ({ instance, onEdit }: InstanceCardProps) => {
           >
             <Edit className="h-4 w-4 mr-1" />
             Editar
+          </Button>
+          <Button
+            onClick={onConfigureTariffs}
+            size="sm"
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            Configurar Tarifas
           </Button>
         </div>
       </CardContent>
