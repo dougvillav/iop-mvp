@@ -27,19 +27,39 @@ const Users = () => {
     queryFn: async () => {
       let query = supabase
         .from('user_profiles')
-        .select(`
-          *,
-          instances!left(id, legal_name)
-        `);
+        .select('*');
       
       if (searchTerm) {
         query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
       
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data: userProfiles, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+
+      // Separar consulta para obtener instancias por usuario
+      const usersWithInstances = await Promise.all(
+        userProfiles.map(async (user) => {
+          if (user.organization_id) {
+            const { data: instances } = await supabase
+              .from('instances')
+              .select('id, legal_name')
+              .eq('organization_id', user.organization_id)
+              .limit(1);
+            
+            return {
+              ...user,
+              instances: instances || []
+            };
+          }
+          return {
+            ...user,
+            instances: []
+          };
+        })
+      );
+
+      return usersWithInstances;
     }
   });
 
@@ -220,3 +240,4 @@ const Users = () => {
 };
 
 export default Users;
+
