@@ -21,12 +21,10 @@ const Dashboard = () => {
         .from('instance_wallets')
         .select('balance_available');
 
-      // Obtener payouts del día actual - usando zona horaria local
+      // Obtener payouts del día actual
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-      
-      console.log('Filtering transactions from:', startOfDay.toISOString(), 'to:', endOfDay.toISOString());
       
       const { data: todayPayouts } = await supabase
         .from('transactions')
@@ -35,7 +33,17 @@ const Dashboard = () => {
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString());
 
-      console.log('Today payouts found:', todayPayouts?.length || 0);
+      // Obtener payouts del mes anterior para comparación
+      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+      const startOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate());
+      const endOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate(), 23, 59, 59, 999);
+      
+      const { data: lastMonthPayouts } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('type', 'pay_out')
+        .gte('created_at', startOfLastMonth.toISOString())
+        .lte('created_at', endOfLastMonth.toISOString());
 
       // Obtener comisiones totales
       const { data: commissions } = await supabase
@@ -43,11 +51,26 @@ const Dashboard = () => {
         .select('commission')
         .not('commission', 'is', null);
 
+      // Obtener comisiones del mes anterior
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const { data: lastMonthCommissions } = await supabase
+        .from('transactions')
+        .select('commission')
+        .not('commission', 'is', null)
+        .gte('created_at', thirtyDaysAgo.toISOString());
+
       // Obtener transacciones pendientes
       const { data: pendingTransactions } = await supabase
         .from('transactions')
         .select('id')
         .eq('status', 'pending');
+
+      // Obtener pendientes del mes anterior
+      const { data: lastMonthPending } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('status', 'pending')
+        .gte('created_at', thirtyDaysAgo.toISOString());
 
       const totalOrgBalance = orgWallets?.reduce((sum, wallet) => 
         sum + Number(wallet.balance_available), 0) || 0;
@@ -57,22 +80,35 @@ const Dashboard = () => {
 
       const totalBalance = totalOrgBalance + totalInstanceBalance;
       const dailyPayouts = todayPayouts?.length || 0;
+      const lastMonthPayoutsCount = lastMonthPayouts?.length || 0;
       const totalCommissions = commissions?.reduce((sum, t) => 
         sum + Number(t.commission), 0) || 0;
+      const lastMonthCommissionsTotal = lastMonthCommissions?.reduce((sum, t) => 
+        sum + Number(t.commission), 0) || 0;
       const pendingCount = pendingTransactions?.length || 0;
+      const lastMonthPendingCount = lastMonthPending?.length || 0;
 
-      console.log('Dashboard KPIs:', {
-        totalBalance,
-        dailyPayouts,
-        totalCommissions,
-        pendingCount
-      });
+      // Calcular trends reales
+      const payoutsTrend = lastMonthPayoutsCount > 0 
+        ? ((dailyPayouts - lastMonthPayoutsCount) / lastMonthPayoutsCount) * 100 
+        : 0;
+      
+      const commissionsTrend = lastMonthCommissionsTotal > 0 
+        ? ((totalCommissions - lastMonthCommissionsTotal) / lastMonthCommissionsTotal) * 100 
+        : 0;
+      
+      const pendingTrend = lastMonthPendingCount > 0 
+        ? ((pendingCount - lastMonthPendingCount) / lastMonthPendingCount) * 100 
+        : 0;
 
       return {
         totalBalance,
         dailyPayouts,
         totalCommissions,
-        pendingCount
+        pendingCount,
+        payoutsTrend,
+        commissionsTrend,
+        pendingTrend
       };
     }
   });
@@ -149,33 +185,37 @@ const Dashboard = () => {
             isPositive: true
           }}
           icon={Wallet}
+          borderColor="border-l-blue-500"
         />
         <KPICard
           title="Payouts Hoy"
           value={dashboardData?.dailyPayouts.toString() || '0'}
           trend={{
-            value: 8.2,
-            isPositive: true
+            value: Math.round(dashboardData?.payoutsTrend || 0),
+            isPositive: (dashboardData?.payoutsTrend || 0) >= 0
           }}
           icon={TrendingUp}
+          borderColor="border-l-green-500"
         />
         <KPICard
           title="Comisiones"
           value={`$${dashboardData?.totalCommissions.toLocaleString() || '0'}`}
           trend={{
-            value: 15.3,
-            isPositive: true
+            value: Math.round(dashboardData?.commissionsTrend || 0),
+            isPositive: (dashboardData?.commissionsTrend || 0) >= 0
           }}
           icon={DollarSign}
+          borderColor="border-l-yellow-500"
         />
         <KPICard
           title="Transacciones Pendientes"
           value={dashboardData?.pendingCount.toString() || '0'}
           trend={{
-            value: -5.1,
-            isPositive: false
+            value: Math.round(dashboardData?.pendingTrend || 0),
+            isPositive: (dashboardData?.pendingTrend || 0) <= 0
           }}
           icon={Clock}
+          borderColor="border-l-red-500"
         />
       </div>
 

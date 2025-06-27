@@ -1,5 +1,5 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { KPICard } from '@/components/dashboard/KPICard';
 import { Wallet, Building2, TrendingUp, DollarSign } from 'lucide-react';
 import type { OrgWallet, InstanceWallet, Instance } from '@/lib/types';
 
@@ -33,63 +33,37 @@ export const WalletStats = ({ orgWallets, instanceWallets }: WalletStatsProps) =
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Balance Total</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-xl font-bold">
-            ${totalBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Suma de todos los wallets
-          </p>
-        </CardContent>
-      </Card>
+      <KPICard
+        title="Balance Total"
+        value={`$${totalBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+        description="Suma de todos los wallets"
+        icon={DollarSign}
+        borderColor="border-l-blue-500"
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Wallets Organizacionales</CardTitle>
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-xl font-bold">
-            ${totalOrgBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {orgWallets.length} wallet{orgWallets.length !== 1 ? 's' : ''}
-          </p>
-        </CardContent>
-      </Card>
+      <KPICard
+        title="Wallets Organizacionales"
+        value={`$${totalOrgBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+        description={`${orgWallets.length} wallet${orgWallets.length !== 1 ? 's' : ''}`}
+        icon={Building2}
+        borderColor="border-l-green-500"
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Wallets de Instancias</CardTitle>
-          <Wallet className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-xl font-bold">
-            ${totalInstanceBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {instanceWallets.length} wallet{instanceWallets.length !== 1 ? 's' : ''}
-          </p>
-        </CardContent>
-      </Card>
+      <KPICard
+        title="Wallets de Instancias"
+        value={`$${totalInstanceBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+        description={`${instanceWallets.length} wallet${instanceWallets.length !== 1 ? 's' : ''}`}
+        icon={Wallet}
+        borderColor="border-l-yellow-500"
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Monedas Activas</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-xl font-bold">{Object.keys(currencyGroups).length}</div>
-          <p className="text-xs text-muted-foreground">
-            {Object.keys(currencyGroups).join(', ')}
-          </p>
-        </CardContent>
-      </Card>
+      <KPICard
+        title="Monedas Activas"
+        value={Object.keys(currencyGroups).length}
+        description={Object.keys(currencyGroups).join(', ')}
+        icon={TrendingUp}
+        borderColor="border-l-purple-500"
+      />
     </div>
   );
 };

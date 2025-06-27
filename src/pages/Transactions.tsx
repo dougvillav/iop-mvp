@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ArrowUpDown, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { TransactionCard } from '@/components/transactions/TransactionCard';
 import { TransactionFilters } from '@/components/transactions/TransactionFilters';
+import { KPICard } from '@/components/dashboard/KPICard';
 import { startTransactionSimulation } from '@/utils/mockTransactionStatus';
 import type { TransactionWithDetails } from '@/lib/types';
 
@@ -123,61 +124,33 @@ const Transactions = () => {
 
       {/* Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <ArrowDown className="h-4 w-4 text-green-600 mr-2" />
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pay In</p>
-                <p className="text-2xl font-bold text-green-600">
-                  ${totals.payIn.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="Pay In"
+          value={`$${totals.payIn.toLocaleString()}`}
+          icon={ArrowDown}
+          borderColor="border-l-green-500"
+        />
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <ArrowUp className="h-4 w-4 text-red-600 mr-2" />
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pay Out</p>
-                <p className="text-2xl font-bold text-red-600">
-                  ${totals.payOut.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="Pay Out"
+          value={`$${totals.payOut.toLocaleString()}`}
+          icon={ArrowUp}
+          borderColor="border-l-red-500"
+        />
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <ArrowUpDown className="h-4 w-4 text-yellow-600 mr-2" />
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pendientes</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  ${totals.pending.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="Pendientes"
+          value={`$${totals.pending.toLocaleString()}`}
+          icon={ArrowUpDown}
+          borderColor="border-l-yellow-500"
+        />
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <ArrowUpDown className="h-4 w-4 text-blue-600 mr-2" />
-              <div>
-                <p className="text-sm font-medium text-gray-600">Completadas</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  ${totals.completed.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="Completadas"
+          value={`$${totals.completed.toLocaleString()}`}
+          icon={ArrowUpDown}
+          borderColor="border-l-blue-500"
+        />
       </div>
 
       {/* Filters */}
