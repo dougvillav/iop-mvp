@@ -47,7 +47,7 @@ const Users = () => {
         .order('legal_name');
       
       if (error) throw error;
-      return data;
+      return data as Pick<Instance, 'id' | 'legal_name'>[];
     }
   });
 
@@ -64,7 +64,7 @@ const Users = () => {
     switch (role) {
       case 'admin':
         return 'default';
-      case 'manager':
+      case 'operator':
         return 'secondary';
       case 'readonly':
         return 'outline';
@@ -77,7 +77,7 @@ const Users = () => {
     switch (role) {
       case 'admin':
         return 'Administrador';
-      case 'manager':
+      case 'operator':
         return 'Gerente';
       case 'readonly':
         return 'Solo lectura';
@@ -181,7 +181,7 @@ const Users = () => {
                       <Shield className="h-4 w-4 mr-2" />
                       Administrador de Organización
                     </div>
-                  ) : user.instances && user.instances.length > 0 ? (
+                  ) : user.instances && Array.isArray(user.instances) && user.instances.length > 0 ? (
                     <div className="flex items-center text-sm text-blue-600">
                       <Building2 className="h-4 w-4 mr-2" />
                       {user.instances[0].legal_name}

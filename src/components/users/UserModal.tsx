@@ -23,7 +23,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
-    role: 'readonly' as 'admin' | 'manager' | 'readonly',
+    role: 'readonly' as 'admin' | 'operator' | 'readonly',
     instance_id: '',
     password: ''
   });
@@ -53,7 +53,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
           email: formData.email,
           full_name: formData.full_name,
           role: formData.role,
-          organization_id: null // Se asignará según la lógica de negocio
+          organization_id: null as string | null
         };
 
         if (formData.role !== 'admin' && formData.instance_id) {
@@ -74,12 +74,6 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
           .insert(profileData);
 
         if (profileError) throw profileError;
-
-        // Si el usuario está asociado a una instancia específica, crear esa relación
-        if (formData.role !== 'admin' && formData.instance_id) {
-          // Aquí podrías crear una tabla de relación user_instances si es necesario
-          // Por ahora, la relación se maneja a través de organization_id
-        }
 
         toast({
           title: 'Usuario creado exitosamente',
@@ -111,7 +105,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
   const handleRoleChange = (role: string) => {
     setFormData(prev => ({
       ...prev,
-      role: role as 'admin' | 'manager' | 'readonly',
+      role: role as 'admin' | 'operator' | 'readonly',
       instance_id: role === 'admin' ? '' : prev.instance_id
     }));
   };
@@ -170,7 +164,7 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Administrador de Organización</SelectItem>
-                <SelectItem value="manager">Gerente de Instancia</SelectItem>
+                <SelectItem value="operator">Gerente de Instancia</SelectItem>
                 <SelectItem value="readonly">Solo Lectura</SelectItem>
               </SelectContent>
             </Select>
@@ -178,11 +172,11 @@ export const UserModal = ({ isOpen, onClose, onUserCreated, instances }: UserMod
 
           {formData.role !== 'admin' && (
             <div className="space-y-2">
-              <Label htmlFor="instance">Instancia {formData.role === 'manager' ? '*' : ''}</Label>
+              <Label htmlFor="instance">Instancia {formData.role === 'operator' ? '*' : ''}</Label>
               <Select
                 value={formData.instance_id}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, instance_id: value }))}
-                required={formData.role === 'manager'}
+                required={formData.role === 'operator'}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar instancia" />
